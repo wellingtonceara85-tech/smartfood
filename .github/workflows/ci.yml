@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  DATABASE_URL: postgresql://smartfood:smartfood@localhost:5432/smartfood?schema=platform
+  JWT_SECRET: ci-only-secret-nao-usar-fora-do-pipeline
+  NEXT_PUBLIC_API_URL: http://localhost:3001
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: smartfood
+          POSTGRES_PASSWORD: smartfood
+          POSTGRES_DB: smartfood
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smartfood"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Instalar dependências
+        run: pnpm install --frozen-lockfile
+
+      - name: Gerar Prisma Client
+        run: pnpm --filter ./backend prisma:generate
+
+      - name: Aplicar migrations no Postgres do CI
+        run: pnpm --filter ./backend prisma:deploy
+
+      - name: Popular Papéis internos (seed)
+        run: node backend/prisma/seed.js
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Testes
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
