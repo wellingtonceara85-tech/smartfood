@@ -25,9 +25,10 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SmartFood API')
     .setDescription(
-      'API do SmartFood — Smart Starter Kit (Missão 0008). Sem endpoint de negócio ainda.',
+      'API do SmartFood — Identidade & Empresa, Usuários/Auth, Catálogo, Pedidos, Cozinha (Missões 0008-0013).',
     )
     .setVersion('0.1.0')
+    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
     .build();
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, swaggerDocument);
