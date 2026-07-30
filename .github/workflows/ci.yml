@@ -7,9 +7,9 @@ on:
     branches: [main, develop]
 
 env:
-  DATABASE_URL: postgresql://smartfood:smartfood@localhost:5432/smartfood?schema=platform
+  DATABASE_URL: postgresql://smartfood:smartfood@localhost:5432/smartfood
   JWT_SECRET: ci-only-secret-nao-usar-fora-do-pipeline
-  NEXT_PUBLIC_API_URL: http://localhost:3001
+  VITE_API_URL: http://localhost:3001
 
 jobs:
   ci:
@@ -33,32 +33,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
 
-      - name: Instalar dependências
-        run: pnpm install --frozen-lockfile
+      - name: Instalar dependências do backend
+        run: npm install
+        working-directory: backend
+
+      - name: Instalar dependências do frontend
+        run: npm install
+        working-directory: frontend
 
       - name: Gerar Prisma Client
-        run: pnpm --filter ./backend prisma:generate
+        run: npm run prisma:generate
+        working-directory: backend
 
       - name: Aplicar migrations no Postgres do CI
-        run: pnpm --filter ./backend prisma:deploy
+        run: npm run prisma:deploy
+        working-directory: backend
 
-      - name: Popular Papéis internos (seed)
-        run: node backend/prisma/seed.js
+      - name: Build backend
+        run: npm run build
+        working-directory: backend
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Testes
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend

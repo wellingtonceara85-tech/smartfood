@@ -2,16 +2,14 @@
   "name": "smartfood",
   "private": true,
   "version": "0.1.0",
-  "description": "SmartFood — plataforma multiempresa de gestão comercial para food service (Smart Platform)",
-  "packageManager": "pnpm@9.15.0",
+  "description": "SmartFood — cardápio digital público por loja (MVP)",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter ./backend --filter ./frontend dev",
-    "build": "pnpm --filter ./backend build && pnpm --filter ./frontend build",
-    "lint": "pnpm --filter ./backend lint && pnpm --filter ./frontend lint",
-    "test": "pnpm --filter ./backend test",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -21,8 +19,10 @@
   },
   "lint-staged": {
     "backend/src/**/*.ts": [
-      "prettier --write",
-      "eslint --fix --config backend/eslint.config.js"
+      "prettier --write"
+    ],
+    "frontend/src/**/*.{ts,tsx}": [
+      "prettier --write"
     ],
     "*.{json,md,yml,yaml}": [
       "prettier --write"

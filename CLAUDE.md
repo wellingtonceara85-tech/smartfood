@@ -1,31 +1,31 @@
 # SmartFood
 
-SaaS multiempresa (multi-tenant) de gestão comercial para restaurantes, lanchonetes, pizzarias, marmitarias, mercados de bairro e afins. Modelo de negócio: assinatura mensal, sem comissão sobre vendas. Ver [docs/product/missao-0001-visao-estrategica.md](docs/product/missao-0001-visao-estrategica.md) para a estratégia de produto completa (visão, personas, MVP, roadmap).
+Cardápio digital público por loja (MVP), inspirado no whatsmenu.com.br: o cliente abre o link da loja (`/:slug`), monta o pedido e finaliza direto no WhatsApp do estabelecimento — sem checkout online, sem pagamento integrado. O dono da loja tem um painel simples pra cadastrar produtos e controlar disponibilidade em tempo real.
 
-## Documentação
+Escopo, modelo de dados, telas e critérios de aceite completos em [PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md](PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md) — esse arquivo é a fonte da verdade do MVP atual.
 
-```
-docs/
-├── product/      → missões de produto (visão, arquitetura funcional, UX/jornadas, ...)
-├── platform/      → aponta para a Smart Platform, compartilhada entre todos os produtos (não duplicada aqui)
-├── business/       → modelo de negócio, precificação, GTM, onboarding de clientes, KPIs (a preencher conforme essas missões acontecerem)
-└── engineering/     → ADRs, changelog, release notes, e review-notes/ (histórico de decisão por missão)
-```
+## Histórico
 
-Índice completo, com status de cada missão (Draft/Congelada), em [docs/README.md](docs/README.md) — segue o [Smart Mission Workflow](../Smart%20Platform/SMART_MISSION_WORKFLOW_v1.0.md).
+O projeto começou como um SaaS multiempresa com arquitetura DDD/multi-tenant/event-driven, seguindo o processo de "missões" da Smart Platform (`C:\Users\AGIL\Documents\Smart Platform\INDEX.md`). Depois de 7 missões de arquitetura e zero telas usáveis, o escopo foi resetado para este MVP enxuto. `docs/` e `backlog/` ficam como histórico dessa fase anterior — não gerar novos documentos desse tipo (missões, ADRs, EPICs) a partir de agora.
 
-## Backlog
+## Fora de escopo agora
 
-`backlog/` — EPIC-001 a EPIC-013, um por domínio de produto, paralelo às missões de arquitetura. Ver [backlog/README.md](backlog/README.md). Nível atual: módulos e fase mapeados, sem user stories ainda (refinamento a partir da Missão 0007).
+Não reintroduzir, sem pedido explícito do usuário: arquitetura DDD/camadas separadas por módulo, ADRs ou processo formal de design antes de codar, multi-tenant com schema separado por empresa, event sourcing/outbox/filas, pagamento online, app mobile nativo, multi-idioma. Ver a seção "Fora de escopo" do prompt do MVP para a lista completa.
 
-## Arquitetura
+## Stack
 
-Este projeto segue a **Smart Platform** — o conjunto de documentos que define arquitetura, design system, guia de desenvolvimento, segurança e IA para todos os produtos da empresa (SmartOS, SmartNCM, SmartFood, futuros):
+- Frontend: React (Vite) + TypeScript + Tailwind — pasta `frontend/`
+- Backend: Node.js + Express (não NestJS) + TypeScript — pasta `backend/`
+- Banco: PostgreSQL, schema único, tabelas simples (`loja_id` como FK, sem multi-schema)
+- ORM: Prisma
+- Auth: JWT + refresh token, RBAC simples (`dono_loja`, `admin_master`)
+- Deploy: Docker + Railway; local via `docker-compose up`
 
-`C:\Users\AGIL\Documents\Smart Platform\INDEX.md`
+`frontend/` e `backend/` são dois projetos simples, sem monorepo com workspace manager obrigatório.
 
-Documentos principais: [Architecture](../Smart%20Platform/SMART_PLATFORM_ARCHITECTURE_v1.0.md) · [Design System](../Smart%20Platform/SMART_DESIGN_SYSTEM_v1.0.md) · [Development Guide](../Smart%20Platform/SMART_DEVELOPMENT_GUIDE_v1.0.md) · [Security Guide](../Smart%20Platform/SMART_SECURITY_GUIDE_v1.0.md) · [AI Guide](../Smart%20Platform/SMART_AI_GUIDE_v1.0.md)
+## Convenções
 
-Não duplicar regras aqui — qualquer decisão de arquitetura, UI, hook/serviço compartilhado, permissão ou uso de IA no SmartFood deve ser consistente com esses documentos. Mudanças no padrão entram por nova versão deles, não por regra isolada criada dentro deste projeto.
-
-Resumo rápido (ver os documentos para detalhes): React + TypeScript + Tailwind no frontend; Node.js no backend com Express ou NestJS conforme porte do projeto (SmartFood, por ser SaaS relativamente enxuto no MVP, tende a Express — decisão a confirmar quando o backend for iniciado); PostgreSQL + Prisma; JWT + Refresh Token; Docker; deploy Vercel (frontend) + Railway/Coolify (backend); três ambientes (dev/staging/production); RBAC com papéis base (Administrador/Gerente/Supervisor/Operador/Financeiro/Cliente/Visitante); IA acessada via serviço `AI` compartilhado, nunca integrada direto por produto.
+- Commits pequenos e objetivos — decisão de implementação não precisa de ADR
+- Sem pasta de backlog formal nem numeração de "missões" para este MVP — usar issues simples se precisar rastrear algo
+- Total do pedido é sempre revalidado no backend contra o preço cadastrado antes de gravar — nunca confiar no total vindo do frontend
+- Disponibilidade de produto reflete em tempo real na página pública, sem cache que atrase isso

@@ -7,6 +7,7 @@ dist/
 build/
 .next/
 out/
+*.tsbuildinfo
 
 # Env
 .env
@@ -22,6 +23,7 @@ pnpm-debug.log*
 # Editor / OS
 .vscode/*
 !.vscode/extensions.json
+.claude/
 .idea/
 .DS_Store
 Thumbs.db
@@ -32,6 +34,9 @@ coverage/
 
 # Prisma
 backend/prisma/generated/
+
+# Uploads locais (fotos de produto/loja)
+backend/uploads/
 
 # Husky (v9 gera _/ opcionalmente)
 .husky/_/

@@ -1,13 +1,3 @@
-// SmartFood — schema.prisma
-//
-// Missão 0006 (Modelagem do Banco de Dados), Seção 9: cada Bounded Context possui seu próprio
-// schema lógico do Postgres. "platform" é a fundação técnica da Missão 0008 (Smart Starter Kit).
-// "identidade_empresa" é o primeiro Bounded Context de negócio (Missão 0009: Empresa/Loja;
-// Missão 0010: Usuário/Papel — mesmo schema físico, Missão 0006 Seção 9).
-//
-// ADR-0016 / ADR-0022: nenhum @relation cruza schema de Bounded Context — dentro do mesmo
-// Bounded Context (Empresa → Loja), FK física é permitida (Missão 0006, Seção 4).
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -15,269 +5,84 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  schemas  = ["platform", "identidade_empresa", "catalogo", "vendas_operacao"]
 }
 
-/// Tabela puramente técnica — não é Agregado de negócio, não representa nenhum Bounded Context.
-/// Existe só para provar que a migration roda e que o Prisma consegue ler/escrever no Postgres.
-model SystemHealthCheck {
-  id        String   @id @default(uuid())
-  checkedAt DateTime @default(now())
-
-  @@map("system_health_checks")
-  @@schema("platform")
+enum Papel {
+  dono_loja
+  admin_master
 }
 
-/// Registro do padrão Outbox (ADR-0023, Missão 0006 Seção 7): a mudança de estado do Agregado
-/// e este INSERT acontecem na mesma transação de banco — garantia de publicação (ADR-0013).
-/// Transversal a todo Bounded Context, por isso vive em "platform", não em um schema de módulo.
-model EventoPublicado {
-  id             String   @id @default(uuid())
-  tipo           String
-  versaoSchema   Int      @default(1)
-  agregadoOrigem String
-  empresaId      String
-  correlationId  String
-  payload        Json
-  statusEntrega  String   @default("pendente")
-  criadoEm       DateTime @default(now())
-
-  @@map("eventos_publicados")
-  @@schema("platform")
-}
-
-/// Aggregate Root do Bounded Context Identidade & Empresa (Missão 0009). Empresa = Tenant (ADR-0002).
-model Empresa {
-  id               String   @id @default(uuid())
-  nome             String
-  cnpjCpf          String   @unique
-  categoriaNegocio String
-  telefone         String
-  chavePix         String?
-  criadaEm         DateTime @default(now())
-
-  lojas    Loja[]
-  usuarios Usuario[]
-
-  @@map("empresas")
-  @@schema("identidade_empresa")
-}
-
-/// Ponto de venda operacional de uma Empresa (Missão 0004, Seção 2). MVP: 1 Loja por Empresa,
-/// criada automaticamente (Missão 0006, Seção 2) — filha do Agregado Empresa, FK física permitida
-/// por estarem no mesmo Bounded Context (Missão 0006, Seção 4).
-model Loja {
-  id        String   @id @default(uuid())
-  empresaId String
-  nome      String
-  criadaEm  DateTime @default(now())
-
-  empresa Empresa @relation(fields: [empresaId], references: [id])
-
-  @@map("lojas")
-  @@schema("identidade_empresa")
-}
-
-/// Aggregate Root Usuário (Missão 0010) — equipe interna, sempre escopado por Empresa
-/// (Missão 0004, Invariante 4), diferente de Cliente (identidade global, ADR-0017).
 model Usuario {
   id        String   @id @default(uuid())
-  empresaId String
   nome      String
-  email     String
-  senhaHash String
-  criadoEm  DateTime @default(now())
+  email     String   @unique
+  senhaHash String   @map("senha_hash")
+  papel     Papel    @default(dono_loja)
+  lojaId    String?  @map("loja_id")
+  loja      Loja?    @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  criadoEm  DateTime @default(now()) @map("criado_em")
 
-  empresa Empresa        @relation(fields: [empresaId], references: [id])
-  papeis  UsuarioPapel[]
-
-  @@unique([empresaId, email])
   @@map("usuarios")
-  @@schema("identidade_empresa")
 }
 
-/// Papel (RBAC) — sempre por Empresa em efeito (Missão 0004, Invariante 6), mas a linha em si
-/// é um catálogo compartilhado entre Empresas (seed fixo, Missão 0010, 5 papéis internos).
-model Papel {
-  id   String @id @default(uuid())
-  nome String @unique
+model Loja {
+  id                String   @id @default(uuid())
+  nome              String
+  slug              String   @unique
+  telefoneWhatsapp  String   @map("telefone_whatsapp")
+  logoUrl           String?  @map("logo_url")
+  tagline           String?
+  endereco          String?
+  horarioAbertura   String?  @map("horario_abertura")
+  horarioFechamento String?  @map("horario_fechamento")
+  abertoManual      Boolean? @map("aberto_manual")
+  criadoEm          DateTime @default(now()) @map("criado_em")
 
-  usuarios UsuarioPapel[]
+  usuarios   Usuario[]
+  categorias Categoria[]
+  produtos   Produto[]
+  pedidos    Pedido[]
 
-  @@map("papeis")
-  @@schema("identidade_empresa")
+  @@map("lojas")
 }
 
-/// Associação N:N Usuário↔Papel (Missão 0006, Seção 9). Missão 0010 só grava 1 linha por
-/// Usuário — a estrutura já nasce pronta para múltiplos Papéis quando houver caso de uso real.
-model UsuarioPapel {
-  usuarioId String
-  papelId   String
-
-  usuario Usuario @relation(fields: [usuarioId], references: [id])
-  papel   Papel   @relation(fields: [papelId], references: [id])
-
-  @@id([usuarioId, papelId])
-  @@map("usuario_papel")
-  @@schema("identidade_empresa")
-}
-
-/// Aggregate Root Categoria (Missão 0011) — escopada por Empresa, não por Loja (ADR-0018):
-/// taxonomia tende a ser compartilhada entre Lojas da mesma Empresa. Sem FK física para
-/// "identidade_empresa" — cruza Bounded Context (ADR-0016/0022).
 model Categoria {
-  id        String   @id @default(uuid())
-  empresaId String
-  nome      String
-  ordem     Int      @default(0)
-  criadaEm  DateTime @default(now())
+  id     String @id @default(uuid())
+  lojaId String @map("loja_id")
+  loja   Loja   @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  nome   String
+  ordem  Int    @default(0)
 
   produtos Produto[]
 
   @@map("categorias")
-  @@schema("catalogo")
 }
 
-/// Aggregate Root Produto (Missão 0011) — escopado por Loja, não por Empresa (ADR-0018), para
-/// já nascer pronto para Multiloja sem migração estrutural futura. `categoriaId` tem FK física
-/// (mesmo Bounded Context/schema); `lojaId` não (cruza para "identidade_empresa").
-/// `imagemUrl`/`controlaEstoque` são placeholders (Missão 0011, Seção 2) — sem upload nem
-/// movimentação de estoque nesta missão, só a coluna para evitar migration futura.
 model Produto {
-  id              String   @id @default(uuid())
-  lojaId          String
-  categoriaId     String
-  nome            String
-  descricao       String?
-  imagemUrl       String?
-  controlaEstoque Boolean  @default(false)
-  disponivel      Boolean  @default(true)
-  criadoEm        DateTime @default(now())
-
-  categoria Categoria         @relation(fields: [categoriaId], references: [id])
-  variacoes VariacaoProduto[]
+  id          String    @id @default(uuid())
+  lojaId      String    @map("loja_id")
+  loja        Loja      @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  categoriaId String    @map("categoria_id")
+  categoria   Categoria @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  nome        String
+  descricao   String?
+  preco       Decimal   @db.Decimal(10, 2)
+  fotoUrl     String?   @map("foto_url")
+  disponivel  Boolean   @default(true)
+  opcoes      Json?
+  criadoEm    DateTime  @default(now()) @map("criado_em")
 
   @@map("produtos")
-  @@schema("catalogo")
 }
 
-/// Variação de um Produto (Missão 0004, Seção 2) — opção com preço e disponibilidade próprios.
-/// Filha do Agregado Produto, FK física permitida (mesmo Agregado). Todo Produto nasce com pelo
-/// menos uma (Invariante 1, Missão 0011).
-model VariacaoProduto {
-  id            String  @id @default(uuid())
-  produtoId     String
-  nome          String
-  /// SKU/código interno (Missão 0012, Seção 2) — placeholder de baixo custo, sem cadastro real
-  /// ainda, mesmo padrão de imagemUrl/controlaEstoque (Missão 0011).
-  codigoInterno String?
-  precoValor    Decimal @db.Decimal(10, 2)
-  precoMoeda    String  @default("BRL")
-  disponivel    Boolean @default(true)
-
-  produto Produto @relation(fields: [produtoId], references: [id])
-
-  @@map("variacoes_produto")
-  @@schema("catalogo")
-}
-
-/// Ciclo de vida completo do Pedido (Missão 0004, Seção 7) — todo o enum é modelado, mas cada
-/// missão só implementa suas próprias transições (0012: Criado→AguardandoPagamento e
-/// (qualquer)→Cancelado; 0013: Recebido→EmPreparo→Pronto). PRONTO e SAIU_PARA_ENTREGA são
-/// estados distintos (ADR-0025) — correção de ambiguidade de notação entre Missão 0004 e
-/// Missão 0002, não mudança de regra de negócio.
-enum StatusPedido {
-  CRIADO
-  AGUARDANDO_PAGAMENTO
-  PAGAMENTO_RECUSADO
-  RECEBIDO
-  EM_PREPARO
-  PRONTO
-  SAIU_PARA_ENTREGA
-  CONCLUIDO
-  CANCELADO
-
-  @@schema("vendas_operacao")
-}
-
-/// Missão 0006, Seção 9. Todo o enum é aceito desde a criação (Missão 0012, Seção 2, revisão) —
-/// só validação de valor, sem custo, evita migration quando Totem/QR Code existirem de verdade.
-enum CanalVenda {
-  SITE
-  QR_CODE
-  MESA
-  BALCAO
-  AUTOATENDIMENTO
-  MARKETPLACE
-  API
-
-  @@schema("vendas_operacao")
-}
-
-/// Aggregate Root Pedido (Missão 0012) — o mais acoplado do domínio (Missão 0004, Seção 8).
-/// Snapshot completo e imutável da venda (ADR-0003): itens/preços nunca mudam após a criação,
-/// só `status` transiciona, sempre via Caso de Uso dedicado. Escopado por Empresa, não por Loja
-/// (Missão 0006, Seção 5 — diferente de Produto, ADR-0018).
 model Pedido {
-  id                 String       @id @default(uuid())
-  empresaId          String
-  /// Opcional por design — característica do domínio (Missão 0012, Seção 3), não limitação
-  /// temporária: Balcão/Mesa/consumo interno rotineiramente não têm Cliente cadastrado.
-  clienteId          String?
-  criadoPorUsuarioId String
-  canalVenda         CanalVenda
-  status             StatusPedido @default(AGUARDANDO_PAGAMENTO)
-  valorTotal         Decimal      @db.Decimal(10, 2)
-
-  enderecoRua         String?
-  enderecoNumero      String?
-  enderecoBairro      String?
-  enderecoCidade      String?
-  enderecoCep         String?
-  enderecoComplemento String?
-
-  criadoEm DateTime @default(now())
-
-  itens     ItemPedido[]
-  historico HistoricoStatusPedido[]
+  id             String   @id @default(uuid())
+  lojaId         String   @map("loja_id")
+  loja           Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  clienteTelefone String  @map("cliente_telefone")
+  itens          Json
+  total          Decimal  @db.Decimal(10, 2)
+  criadoEm       DateTime @default(now()) @map("criado_em")
 
   @@map("pedidos")
-  @@schema("vendas_operacao")
-}
-
-/// Snapshot completo e imutável (ADR-0003) — nome, descrição, SKU e preço são copiados no
-/// momento da criação, nunca mais consultados do Catálogo. `produtoId`/`variacaoId` são só
-/// referência histórica, sem FK (cruza Bounded Context, ADR-0016/0022).
-model ItemPedido {
-  id                    String  @id @default(uuid())
-  pedidoId              String
-  produtoId             String
-  variacaoId            String
-  nomeProduto           String
-  nomeVariacao          String
-  descricaoProduto      String?
-  codigoInternoVariacao String?
-  precoValor            Decimal @db.Decimal(10, 2)
-  precoMoeda            String  @default("BRL")
-  quantidade            Int
-
-  pedido Pedido @relation(fields: [pedidoId], references: [id])
-
-  @@map("itens_pedido")
-  @@schema("vendas_operacao")
-}
-
-/// Timeline de mudança de status (Missão 0006, Seção 9) — Value Object materializado, não um
-/// Agregado próprio. Nasce com 1 linha já na criação do Pedido (Missão 0012, Seção 2, revisão)
-/// — nenhum Pedido existe sem histórico.
-model HistoricoStatusPedido {
-  id         String       @id @default(uuid())
-  pedidoId   String
-  status     StatusPedido
-  ocorridoEm DateTime     @default(now())
-
-  pedido Pedido @relation(fields: [pedidoId], references: [id])
-
-  @@map("historico_status_pedido")
-  @@schema("vendas_operacao")
 }

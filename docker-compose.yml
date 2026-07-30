@@ -1,8 +1,7 @@
-# SmartFood — Smart Starter Kit (Missão 0008)
+# SmartFood — MVP: cardápio digital público por loja
 #
-# `docker compose up` deve deixar de pé: Postgres, backend (NestJS) e frontend (Next.js),
+# `docker compose up` sobe: Postgres, backend (Express) e frontend (Vite/React servido estático),
 # com o backend rodando a migration do Prisma antes de subir a API.
-# Nenhum serviço aqui expõe funcionalidade de negócio — só a fundação técnica.
 
 services:
   postgres:
@@ -35,23 +34,24 @@ services:
       PORT: 3001
       DATABASE_URL: ${DATABASE_URL}
       JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     ports:
       - '${BACKEND_PORT:-3001}:3001'
+    volumes:
+      - smartfood_uploads:/app/uploads
 
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
     restart: unless-stopped
     depends_on:
       - backend
-    environment:
-      NODE_ENV: development
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
     ports:
       - '${FRONTEND_PORT:-3000}:3000'
 
 volumes:
   smartfood_postgres_data:
+  smartfood_uploads:

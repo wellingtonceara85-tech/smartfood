@@ -1,27 +1,21 @@
-# SmartFood — frontend (Next.js, output standalone)
-
-FROM node:20-slim AS base
-RUN corepack enable
+FROM node:20-alpine AS base
 WORKDIR /app
 
 FROM base AS deps
-COPY package.json pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/
-RUN pnpm install --frozen-lockfile=false --filter @smartfood/frontend...
+COPY frontend/package.json ./
+RUN npm install
 
-FROM deps AS build
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-COPY frontend ./frontend
-WORKDIR /app/frontend
-RUN pnpm build
+FROM base AS build
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+COPY --from=deps /app/node_modules ./node_modules
+COPY frontend/ ./
+RUN npm run build
 
-FROM node:20-slim AS runtime
-WORKDIR /app
+FROM base AS runtime
 ENV NODE_ENV=production
-COPY --from=build /app/frontend/.next/standalone ./
-COPY --from=build /app/frontend/.next/static ./frontend/.next/static
-COPY --from=build /app/frontend/public ./frontend/public
+RUN npm install -g serve
+COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
-CMD ["node", "frontend/server.js"]
+CMD ["serve", "-s", "dist", "-l", "3000"]
