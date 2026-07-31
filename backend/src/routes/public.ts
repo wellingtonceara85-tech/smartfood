@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { env } from '../env';
 import { prisma } from '../prisma';
 import { calcularAberto } from '../utils/horario';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
@@ -75,6 +76,32 @@ publicRouter.get('/lojas/:slug/pedidos/ultimo', async (req, res) => {
   res.json(pedido ?? null);
 });
 
+publicRouter.get('/lojas/:slug/pedidos/:id', async (req, res) => {
+  const loja = await prisma.loja.findUnique({ where: { slug: req.params.slug } });
+  if (!loja) {
+    return res.status(404).json({ erro: 'Loja não encontrada' });
+  }
+
+  const pedido = await prisma.pedido.findFirst({
+    where: { id: req.params.id, lojaId: loja.id },
+  });
+  if (!pedido) {
+    return res.status(404).json({ erro: 'Pedido não encontrado' });
+  }
+
+  res.json({
+    id: pedido.id,
+    numero: pedido.numero,
+    status: pedido.status,
+    itens: pedido.itens,
+    formaRecebimento: pedido.formaRecebimento,
+    bairroEntregaNome: pedido.bairroEntregaNome,
+    total: Number(pedido.total),
+    criadoEm: pedido.criadoEm,
+    loja: { nome: loja.nome },
+  });
+});
+
 const itemPedidoSchema = z.object({
   produtoId: z.string().uuid(),
   opcao: z.string().nullable().optional(),
@@ -82,10 +109,12 @@ const itemPedidoSchema = z.object({
 });
 
 const criarPedidoSchema = z.object({
+  clienteNome: z.string().min(1),
   clienteTelefone: z.string().min(8),
   itens: z.array(itemPedidoSchema).min(1),
   formaRecebimento: z.enum(['entrega', 'retirada']),
   bairroEntregaId: z.string().uuid().nullable().optional(),
+  formaPagamento: z.enum(['dinheiro', 'cartao', 'pix']),
 });
 
 publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
@@ -155,10 +184,13 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
   }
 
   const total = subtotalItens + valorEntrega;
+  const numero = (await prisma.pedido.count({ where: { lojaId: loja.id } })) + 1;
 
   const pedido = await prisma.pedido.create({
     data: {
       lojaId: loja.id,
+      numero,
+      clienteNome: parsed.data.clienteNome,
       clienteTelefone: parsed.data.clienteTelefone,
       itens: itensResolvidos,
       formaRecebimento: parsed.data.formaRecebimento,
@@ -166,15 +198,29 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
         parsed.data.formaRecebimento === 'entrega' ? parsed.data.bairroEntregaId : null,
       bairroEntregaNome,
       valorEntrega,
+      formaPagamento: parsed.data.formaPagamento,
       total,
     },
   });
 
-  const mensagem = montarMensagemPedido(loja.nome, itensResolvidos, total, {
-    forma: parsed.data.formaRecebimento,
-    bairroNome: bairroEntregaNome,
-    valorEntrega,
-  });
+  const linkAcompanhamento = `${env.frontendUrl}/${loja.slug}/pedido/${pedido.id}`;
+  const mensagem = montarMensagemPedido(
+    loja.nome,
+    itensResolvidos,
+    total,
+    {
+      forma: parsed.data.formaRecebimento,
+      bairroNome: bairroEntregaNome,
+      valorEntrega,
+    },
+    {
+      numero,
+      clienteNome: parsed.data.clienteNome,
+      clienteTelefone: parsed.data.clienteTelefone,
+      formaPagamento: parsed.data.formaPagamento,
+      linkAcompanhamento,
+    },
+  );
   const linkWhatsapp = `https://wa.me/${loja.telefoneWhatsapp}?text=${encodeURIComponent(mensagem)}`;
 
   res.status(201).json({ pedido, mensagem, linkWhatsapp });

@@ -3,7 +3,13 @@ import { useParams } from 'react-router-dom';
 import { CardProduto } from '../components/CardProduto';
 import { ResumoPedido } from '../components/ResumoPedido';
 import { api } from '../lib/api';
-import { ItemCarrinho, LojaPublica as LojaPublicaTipo, PedidoAnterior, Produto } from '../types';
+import {
+  FormaPagamento,
+  ItemCarrinho,
+  LojaPublica as LojaPublicaTipo,
+  PedidoAnterior,
+  Produto,
+} from '../types';
 
 export function LojaPublica() {
   const { slug } = useParams<{ slug: string }>();
@@ -12,7 +18,9 @@ export function LojaPublica() {
   const [categoriaAtiva, setCategoriaAtiva] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState<Record<string, ItemCarrinho>>({});
+  const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('dinheiro');
   const [pedidoAnterior, setPedidoAnterior] = useState<PedidoAnterior | null>(null);
   const [finalizando, setFinalizando] = useState(false);
   const [erroPedido, setErroPedido] = useState<string | null>(null);
@@ -84,9 +92,17 @@ export function LojaPublica() {
     if (!pedidoAnterior) return;
     const novoCarrinho: Record<string, ItemCarrinho> = {};
     for (const item of pedidoAnterior.itens) {
-      novoCarrinho[`${item.produtoId}-${item.opcao ?? ''}`] = item;
+      novoCarrinho[`${item.produtoId}-${item.opcao ?? ''}`] = {
+        produtoId: item.produtoId,
+        nome: item.nome,
+        preco: item.precoUnitario,
+        opcao: item.opcao,
+        quantidade: item.quantidade,
+      };
     }
     setCarrinho(novoCarrinho);
+    setNome(pedidoAnterior.clienteNome);
+    setFormaPagamento(pedidoAnterior.formaPagamento);
 
     const bairroAindaAtivo = loja?.bairrosEntrega.some(
       (b) => b.id === pedidoAnterior.bairroEntregaId,
@@ -107,7 +123,7 @@ export function LojaPublica() {
   const total = subtotal + taxaEntrega;
 
   async function finalizarPedido() {
-    if (!slug || itensCarrinho.length === 0 || !telefone) return;
+    if (!slug || itensCarrinho.length === 0 || !telefone || !nome.trim()) return;
     if (formaRecebimento === 'entrega' && !bairroSelecionadoId) return;
     setFinalizando(true);
     setErroPedido(null);
@@ -121,6 +137,7 @@ export function LojaPublica() {
       const resposta = await api<{ linkWhatsapp: string }>(`/api/public/lojas/${slug}/pedidos`, {
         method: 'POST',
         body: {
+          clienteNome: nome.trim(),
           clienteTelefone: telefone,
           itens: itensCarrinho.map((item) => ({
             produtoId: item.produtoId,
@@ -129,6 +146,7 @@ export function LojaPublica() {
           })),
           formaRecebimento,
           bairroEntregaId: formaRecebimento === 'entrega' ? bairroSelecionadoId : null,
+          formaPagamento,
         },
       });
       if (abaWhatsapp) {
@@ -234,6 +252,8 @@ export function LojaPublica() {
       <ResumoPedido
         itens={itensCarrinho}
         total={total}
+        nome={nome}
+        aoMudarNome={setNome}
         telefone={telefone}
         aoMudarTelefone={setTelefone}
         aoFinalizar={finalizarPedido}
@@ -245,6 +265,8 @@ export function LojaPublica() {
         bairroSelecionadoId={bairroSelecionadoId}
         aoMudarBairro={setBairroSelecionadoId}
         taxaEntrega={taxaEntrega}
+        formaPagamento={formaPagamento}
+        aoMudarFormaPagamento={setFormaPagamento}
       />
 
       <footer className="mx-auto max-w-2xl px-4 py-6 text-center text-xs text-gray-400">

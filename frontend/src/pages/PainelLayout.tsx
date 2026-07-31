@@ -23,6 +23,9 @@ export function PainelLayout() {
         <NavLink to="/painel/produtos" className={linkClasse}>
           Produtos
         </NavLink>
+        <NavLink to="/painel/pedidos" className={linkClasse}>
+          Pedidos
+        </NavLink>
         <NavLink to="/painel/entrega" className={linkClasse}>
           Entrega
         </NavLink>

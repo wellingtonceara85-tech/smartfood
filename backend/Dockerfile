@@ -3,6 +3,7 @@ WORKDIR /app
 
 FROM base AS deps
 COPY backend/package.json ./
+COPY backend/prisma ./prisma
 RUN npm install
 
 FROM base AS build

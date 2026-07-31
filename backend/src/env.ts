@@ -24,4 +24,7 @@ export const env = {
       .split(',')
       .map((origem) => origem.trim());
   },
+  get frontendUrl() {
+    return lido('FRONTEND_URL', 'http://localhost:3000');
+  },
 };

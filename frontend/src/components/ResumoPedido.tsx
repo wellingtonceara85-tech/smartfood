@@ -1,8 +1,10 @@
-import { BairroEntrega, ItemCarrinho } from '../types';
+import { BairroEntrega, FormaPagamento, ItemCarrinho } from '../types';
 
 interface Props {
   itens: ItemCarrinho[];
   total: number;
+  nome: string;
+  aoMudarNome: (valor: string) => void;
   telefone: string;
   aoMudarTelefone: (valor: string) => void;
   aoFinalizar: () => void;
@@ -14,11 +16,21 @@ interface Props {
   bairroSelecionadoId: string | null;
   aoMudarBairro: (id: string | null) => void;
   taxaEntrega: number;
+  formaPagamento: FormaPagamento;
+  aoMudarFormaPagamento: (forma: FormaPagamento) => void;
 }
+
+const OPCOES_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
+  { valor: 'dinheiro', rotulo: 'Dinheiro' },
+  { valor: 'cartao', rotulo: 'Cartão' },
+  { valor: 'pix', rotulo: 'Pix' },
+];
 
 export function ResumoPedido({
   itens,
   total,
+  nome,
+  aoMudarNome,
   telefone,
   aoMudarTelefone,
   aoFinalizar,
@@ -30,6 +42,8 @@ export function ResumoPedido({
   bairroSelecionadoId,
   aoMudarBairro,
   taxaEntrega,
+  formaPagamento,
+  aoMudarFormaPagamento,
 }: Props) {
   const entregaSemBairroEscolhido = formaRecebimento === 'entrega' && !bairroSelecionadoId;
 
@@ -113,6 +127,29 @@ export function ResumoPedido({
           </div>
         )}
 
+        <div className="mb-2 flex overflow-hidden rounded-lg border border-gray-300">
+          {OPCOES_PAGAMENTO.map((opcao) => (
+            <button
+              key={opcao.valor}
+              type="button"
+              onClick={() => aoMudarFormaPagamento(opcao.valor)}
+              className={`flex-1 px-3 py-1.5 text-sm font-medium ${
+                formaPagamento === opcao.valor
+                  ? 'bg-green-600 text-white'
+                  : 'bg-white text-gray-600'
+              }`}
+            >
+              {opcao.rotulo}
+            </button>
+          ))}
+        </div>
+
+        <input
+          value={nome}
+          onChange={(e) => aoMudarNome(e.target.value)}
+          placeholder="Seu nome"
+          className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+        />
         <input
           value={telefone}
           onChange={(e) => aoMudarTelefone(e.target.value)}
@@ -124,7 +161,13 @@ export function ResumoPedido({
           <span className="font-semibold text-gray-800">Total: R$ {total.toFixed(2)}</span>
           <button
             type="button"
-            disabled={itens.length === 0 || !telefone || finalizando || entregaSemBairroEscolhido}
+            disabled={
+              itens.length === 0 ||
+              !nome.trim() ||
+              !telefone ||
+              finalizando ||
+              entregaSemBairroEscolhido
+            }
             onClick={aoFinalizar}
             className="rounded-full bg-green-600 px-5 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"
           >

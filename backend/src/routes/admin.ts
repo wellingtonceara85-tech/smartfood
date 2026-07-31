@@ -1,4 +1,4 @@
-import { BairroEntrega, Prisma, Produto } from '@prisma/client';
+import { BairroEntrega, Pedido, Prisma, Produto } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
@@ -11,6 +11,12 @@ function serializarProduto(produto: Produto) {
 function serializarBairro(bairro: BairroEntrega) {
   return { ...bairro, valorEntrega: Number(bairro.valorEntrega) };
 }
+
+function serializarPedido(pedido: Pedido) {
+  return { ...pedido, total: Number(pedido.total), valorEntrega: Number(pedido.valorEntrega) };
+}
+
+const STATUS_PEDIDO = ['recebido', 'em_preparo', 'pronto', 'entregue'] as const;
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -286,4 +292,39 @@ adminRouter.delete('/bairros/:id', async (req, res) => {
 
   await prisma.bairroEntrega.delete({ where: { id: existente.id } });
   res.status(204).send();
+});
+
+// --- Pedidos ---
+
+adminRouter.get('/pedidos', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const pedidos = await prisma.pedido.findMany({
+    where: { lojaId },
+    orderBy: { criadoEm: 'desc' },
+    take: 100,
+  });
+  res.json(pedidos.map(serializarPedido));
+});
+
+const atualizarStatusSchema = z.object({
+  status: z.enum(STATUS_PEDIDO),
+});
+
+adminRouter.patch('/pedidos/:id/status', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = atualizarStatusSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ erro: 'Status inválido' });
+
+  const existente = await prisma.pedido.findFirst({ where: { id: req.params.id, lojaId } });
+  if (!existente) return res.status(404).json({ erro: 'Pedido não encontrado' });
+
+  const pedido = await prisma.pedido.update({
+    where: { id: existente.id },
+    data: { status: parsed.data.status },
+  });
+  res.json(serializarPedido(pedido));
 });

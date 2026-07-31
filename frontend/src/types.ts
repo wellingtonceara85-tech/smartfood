@@ -75,14 +75,58 @@ export interface LojaAdmin {
   totalPedidos: number;
 }
 
+export type StatusPedido = 'recebido' | 'em_preparo' | 'pronto' | 'entregue';
+export type FormaPagamento = 'dinheiro' | 'cartao' | 'pix';
+
+/** Formato em que os itens ficam gravados dentro de um pedido já criado (Pedido.itens no backend) — diferente de ItemCarrinho. */
+export interface ItemPedidoRegistrado {
+  produtoId: string;
+  nome: string;
+  opcao: string | null;
+  quantidade: number;
+  precoUnitario: number;
+  subtotal: number;
+}
+
 export interface PedidoAnterior {
   id: string;
+  numero: number;
+  clienteNome: string;
   clienteTelefone: string;
-  itens: ItemCarrinho[];
+  itens: ItemPedidoRegistrado[];
   formaRecebimento: 'entrega' | 'retirada';
   bairroEntregaId: string | null;
   bairroEntregaNome: string | null;
   valorEntrega: number;
+  formaPagamento: FormaPagamento;
+  status: StatusPedido;
   total: number;
   criadoEm: string;
+}
+
+export interface PedidoAdmin {
+  id: string;
+  numero: number;
+  clienteNome: string;
+  clienteTelefone: string;
+  itens: ItemPedidoRegistrado[];
+  formaRecebimento: 'entrega' | 'retirada';
+  bairroEntregaNome: string | null;
+  valorEntrega: number;
+  formaPagamento: FormaPagamento;
+  status: StatusPedido;
+  total: number;
+  criadoEm: string;
+}
+
+export interface PedidoAcompanhamento {
+  id: string;
+  numero: number;
+  status: StatusPedido;
+  itens: ItemPedidoRegistrado[];
+  formaRecebimento: 'entrega' | 'retirada';
+  bairroEntregaNome: string | null;
+  total: number;
+  criadoEm: string;
+  loja: { nome: string };
 }
