@@ -19,11 +19,13 @@ export function montarMensagemPedido(
   total: number,
   recebimento: RecebimentoMensagem,
 ): string {
-  const linhas = [`Pedido - ${nomeLoja}`, ''];
+  // *texto* é a sintaxe de negrito do WhatsApp (não é markdown/HTML) — usado só
+  // nos destaques (nome da loja, itens e total), o resto fica em texto normal.
+  const linhas = [`*Pedido - ${nomeLoja}*`, ''];
 
   for (const item of itens) {
     const descricaoOpcao = item.opcao ? ` (${item.opcao})` : '';
-    linhas.push(`${item.quantidade}x ${item.nome}${descricaoOpcao} - ${moeda(item.subtotal)}`);
+    linhas.push(`*${item.quantidade}x ${item.nome}${descricaoOpcao}* - ${moeda(item.subtotal)}`);
   }
 
   const linhaRecebimento =
@@ -31,7 +33,7 @@ export function montarMensagemPedido(
       ? `Forma de recebimento: Entrega - ${recebimento.bairroNome} (${moeda(recebimento.valorEntrega ?? 0)})`
       : 'Forma de recebimento: Retirada no local';
 
-  linhas.push('', linhaRecebimento, '', `Total: ${moeda(total)}`);
+  linhas.push('', linhaRecebimento, '', `*Total: ${moeda(total)}*`);
 
   return linhas.join('\n');
 }
