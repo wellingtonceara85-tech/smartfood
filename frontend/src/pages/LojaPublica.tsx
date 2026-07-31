@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { BarraResumoCompacta } from '../components/BarraResumoCompacta';
 import { CardProduto } from '../components/CardProduto';
 import { ResumoPedido } from '../components/ResumoPedido';
 import { api } from '../lib/api';
@@ -29,6 +30,7 @@ export function LojaPublica() {
   const [erroPedido, setErroPedido] = useState<string | null>(null);
   const [formaRecebimento, setFormaRecebimento] = useState<'entrega' | 'retirada'>('retirada');
   const [bairroSelecionadoId, setBairroSelecionadoId] = useState<string | null>(null);
+  const [resumoAberto, setResumoAberto] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -120,6 +122,7 @@ export function LojaPublica() {
       setFormaRecebimento('retirada');
       setBairroSelecionadoId(null);
     }
+    setResumoAberto(true);
   }
 
   const itensCarrinho = Object.values(carrinho);
@@ -170,6 +173,7 @@ export function LojaPublica() {
         window.location.href = resposta.linkWhatsapp;
       }
       setCarrinho({});
+      setResumoAberto(false);
     } catch (e) {
       abaWhatsapp?.close();
       setErroPedido(e instanceof Error ? e.message : 'Não foi possível finalizar o pedido');
@@ -187,7 +191,7 @@ export function LojaPublica() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-40">
+    <div className={`min-h-screen bg-gray-50 ${itensCarrinho.length > 0 ? 'pb-20' : 'pb-6'}`}>
       <header className="relative bg-white pb-4 text-center">
         <div className="h-28 bg-gradient-to-r from-green-600 to-emerald-500" />
 
@@ -263,32 +267,43 @@ export function LojaPublica() {
         {erroPedido && <p className="mt-3 text-sm text-red-600">{erroPedido}</p>}
       </div>
 
-      <ResumoPedido
-        itens={itensCarrinho}
-        total={total}
-        nome={nome}
-        aoMudarNome={setNome}
-        telefone={telefone}
-        aoMudarTelefone={setTelefone}
-        aoFinalizar={finalizarPedido}
-        finalizando={finalizando}
-        removerItem={removerItem}
-        bairros={loja.bairrosEntrega}
-        formaRecebimento={formaRecebimento}
-        aoMudarFormaRecebimento={setFormaRecebimento}
-        bairroSelecionadoId={bairroSelecionadoId}
-        aoMudarBairro={setBairroSelecionadoId}
-        taxaEntrega={taxaEntrega}
-        chavePix={loja.chavePix}
-        formaPagamento={formaPagamento}
-        aoMudarFormaPagamento={setFormaPagamento}
-        precisaTroco={precisaTroco}
-        aoMudarPrecisaTroco={setPrecisaTroco}
-        trocoPara={trocoPara}
-        aoMudarTrocoPara={setTrocoPara}
-        tipoCartao={tipoCartao}
-        aoMudarTipoCartao={setTipoCartao}
-      />
+      {itensCarrinho.length > 0 && !resumoAberto && (
+        <BarraResumoCompacta
+          quantidadeItens={itensCarrinho.reduce((soma, item) => soma + item.quantidade, 0)}
+          total={total}
+          aoAbrir={() => setResumoAberto(true)}
+        />
+      )}
+
+      {itensCarrinho.length > 0 && resumoAberto && (
+        <ResumoPedido
+          itens={itensCarrinho}
+          total={total}
+          nome={nome}
+          aoMudarNome={setNome}
+          telefone={telefone}
+          aoMudarTelefone={setTelefone}
+          aoFinalizar={finalizarPedido}
+          aoFechar={() => setResumoAberto(false)}
+          finalizando={finalizando}
+          removerItem={removerItem}
+          bairros={loja.bairrosEntrega}
+          formaRecebimento={formaRecebimento}
+          aoMudarFormaRecebimento={setFormaRecebimento}
+          bairroSelecionadoId={bairroSelecionadoId}
+          aoMudarBairro={setBairroSelecionadoId}
+          taxaEntrega={taxaEntrega}
+          chavePix={loja.chavePix}
+          formaPagamento={formaPagamento}
+          aoMudarFormaPagamento={setFormaPagamento}
+          precisaTroco={precisaTroco}
+          aoMudarPrecisaTroco={setPrecisaTroco}
+          trocoPara={trocoPara}
+          aoMudarTrocoPara={setTrocoPara}
+          tipoCartao={tipoCartao}
+          aoMudarTipoCartao={setTipoCartao}
+        />
+      )}
 
       <footer className="mx-auto max-w-2xl px-4 py-6 text-center text-xs text-gray-400">
         <p className="font-medium text-gray-600">{loja.nome}</p>
