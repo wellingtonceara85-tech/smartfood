@@ -16,15 +16,16 @@ interface Props {
   bairroSelecionadoId: string | null;
   aoMudarBairro: (id: string | null) => void;
   taxaEntrega: number;
+  chavePix: string | null;
   formaPagamento: FormaPagamento;
   aoMudarFormaPagamento: (forma: FormaPagamento) => void;
+  precisaTroco: boolean;
+  aoMudarPrecisaTroco: (valor: boolean) => void;
+  trocoPara: string;
+  aoMudarTrocoPara: (valor: string) => void;
+  tipoCartao: 'debito' | 'credito' | null;
+  aoMudarTipoCartao: (valor: 'debito' | 'credito') => void;
 }
-
-const OPCOES_PAGAMENTO: { valor: FormaPagamento; rotulo: string }[] = [
-  { valor: 'dinheiro', rotulo: 'Dinheiro' },
-  { valor: 'cartao', rotulo: 'Cartão' },
-  { valor: 'pix', rotulo: 'Pix' },
-];
 
 export function ResumoPedido({
   itens,
@@ -42,10 +43,28 @@ export function ResumoPedido({
   bairroSelecionadoId,
   aoMudarBairro,
   taxaEntrega,
+  chavePix,
   formaPagamento,
   aoMudarFormaPagamento,
+  precisaTroco,
+  aoMudarPrecisaTroco,
+  trocoPara,
+  aoMudarTrocoPara,
+  tipoCartao,
+  aoMudarTipoCartao,
 }: Props) {
   const entregaSemBairroEscolhido = formaRecebimento === 'entrega' && !bairroSelecionadoId;
+  const trocoInvalido =
+    formaPagamento === 'dinheiro' &&
+    precisaTroco &&
+    (!trocoPara.trim() || Number(trocoPara.replace(',', '.')) <= total);
+  const cartaoSemTipo = formaPagamento === 'cartao' && !tipoCartao;
+
+  const opcoesPagamento: { valor: FormaPagamento; rotulo: string }[] = [
+    { valor: 'dinheiro', rotulo: 'Dinheiro' },
+    { valor: 'cartao', rotulo: 'Cartão' },
+    ...(chavePix ? [{ valor: 'pix' as const, rotulo: 'Pix' }] : []),
+  ];
 
   return (
     <div className="fixed inset-x-0 bottom-0 border-t bg-white p-3 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
@@ -128,7 +147,7 @@ export function ResumoPedido({
         )}
 
         <div className="mb-2 flex overflow-hidden rounded-lg border border-gray-300">
-          {OPCOES_PAGAMENTO.map((opcao) => (
+          {opcoesPagamento.map((opcao) => (
             <button
               key={opcao.valor}
               type="button"
@@ -143,6 +162,70 @@ export function ResumoPedido({
             </button>
           ))}
         </div>
+
+        {formaPagamento === 'dinheiro' && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-gray-600">Precisa de troco?</span>
+            <div className="flex overflow-hidden rounded-lg border border-gray-300">
+              <button
+                type="button"
+                onClick={() => aoMudarPrecisaTroco(false)}
+                className={`px-3 py-1 text-sm font-medium ${
+                  !precisaTroco ? 'bg-green-600 text-white' : 'bg-white text-gray-600'
+                }`}
+              >
+                Não
+              </button>
+              <button
+                type="button"
+                onClick={() => aoMudarPrecisaTroco(true)}
+                className={`px-3 py-1 text-sm font-medium ${
+                  precisaTroco ? 'bg-green-600 text-white' : 'bg-white text-gray-600'
+                }`}
+              >
+                Sim
+              </button>
+            </div>
+            {precisaTroco && (
+              <input
+                value={trocoPara}
+                onChange={(e) => aoMudarTrocoPara(e.target.value)}
+                placeholder="Troco para quanto? Ex: 50"
+                inputMode="decimal"
+                className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            )}
+          </div>
+        )}
+
+        {formaPagamento === 'cartao' && (
+          <div className="mb-2 flex overflow-hidden rounded-lg border border-gray-300">
+            <button
+              type="button"
+              onClick={() => aoMudarTipoCartao('debito')}
+              className={`flex-1 px-3 py-1.5 text-sm font-medium ${
+                tipoCartao === 'debito' ? 'bg-green-600 text-white' : 'bg-white text-gray-600'
+              }`}
+            >
+              Débito
+            </button>
+            <button
+              type="button"
+              onClick={() => aoMudarTipoCartao('credito')}
+              className={`flex-1 px-3 py-1.5 text-sm font-medium ${
+                tipoCartao === 'credito' ? 'bg-green-600 text-white' : 'bg-white text-gray-600'
+              }`}
+            >
+              Crédito
+            </button>
+          </div>
+        )}
+
+        {formaPagamento === 'pix' && chavePix && (
+          <div className="mb-2 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            Chave Pix da loja: <span className="font-medium text-gray-800">{chavePix}</span>
+          </div>
+        )}
 
         <input
           value={nome}
@@ -166,7 +249,9 @@ export function ResumoPedido({
               !nome.trim() ||
               !telefone ||
               finalizando ||
-              entregaSemBairroEscolhido
+              entregaSemBairroEscolhido ||
+              trocoInvalido ||
+              cartaoSemTipo
             }
             onClick={aoFinalizar}
             className="rounded-full bg-green-600 px-5 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"

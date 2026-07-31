@@ -16,6 +16,10 @@ interface PedidoMensagem {
   clienteNome: string;
   clienteTelefone: string;
   formaPagamento: string;
+  precisaTroco: boolean;
+  trocoPara: number | null;
+  tipoCartao: string | null;
+  chavePix: string | null;
   linkAcompanhamento: string;
 }
 
@@ -54,12 +58,24 @@ export function montarMensagemPedido(
     recebimento.forma === 'entrega'
       ? `Forma de recebimento: Entrega - ${recebimento.bairroNome} (${moeda(recebimento.valorEntrega ?? 0)})`
       : 'Forma de recebimento: Retirada no local';
-  const linhaPagamento = `Pagamento em: ${LABEL_PAGAMENTO[pedido.formaPagamento] ?? pedido.formaPagamento}`;
+
+  let detalhePagamento = LABEL_PAGAMENTO[pedido.formaPagamento] ?? pedido.formaPagamento;
+  if (pedido.formaPagamento === 'dinheiro') {
+    detalhePagamento = pedido.precisaTroco
+      ? `Dinheiro (troco para ${moeda(pedido.trocoPara ?? 0)})`
+      : 'Dinheiro (sem troco)';
+  } else if (pedido.formaPagamento === 'cartao') {
+    detalhePagamento = `Cartão - ${pedido.tipoCartao === 'credito' ? 'Crédito' : 'Débito'}`;
+  }
+  const linhaPagamento = `Pagamento em: ${detalhePagamento}`;
+
+  linhas.push('', linhaRecebimento, linhaPagamento);
+
+  if (pedido.formaPagamento === 'pix' && pedido.chavePix) {
+    linhas.push(`Chave Pix da loja: ${pedido.chavePix}`);
+  }
 
   linhas.push(
-    '',
-    linhaRecebimento,
-    linhaPagamento,
     '',
     `*Total: ${moeda(total)}*`,
     '',

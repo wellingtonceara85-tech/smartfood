@@ -33,6 +33,7 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     logoUrl: loja.logoUrl,
     tagline: loja.tagline,
     endereco: loja.endereco,
+    chavePix: loja.chavePix,
     telefoneWhatsapp: loja.telefoneWhatsapp,
     aberto: calcularAberto(loja),
     bairrosEntrega: loja.bairrosEntrega.map((bairro) => ({
@@ -115,6 +116,9 @@ const criarPedidoSchema = z.object({
   formaRecebimento: z.enum(['entrega', 'retirada']),
   bairroEntregaId: z.string().uuid().nullable().optional(),
   formaPagamento: z.enum(['dinheiro', 'cartao', 'pix']),
+  precisaTroco: z.boolean().nullable().optional(),
+  trocoPara: z.number().positive().nullable().optional(),
+  tipoCartao: z.enum(['debito', 'credito']).nullable().optional(),
 });
 
 publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
@@ -184,6 +188,18 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
   }
 
   const total = subtotalItens + valorEntrega;
+
+  if (parsed.data.formaPagamento === 'cartao' && !parsed.data.tipoCartao) {
+    return res.status(400).json({ erro: 'Selecione débito ou crédito' });
+  }
+  if (
+    parsed.data.formaPagamento === 'dinheiro' &&
+    parsed.data.precisaTroco &&
+    (!parsed.data.trocoPara || parsed.data.trocoPara <= total)
+  ) {
+    return res.status(400).json({ erro: 'Informe um valor de troco maior que o total do pedido' });
+  }
+
   const numero = (await prisma.pedido.count({ where: { lojaId: loja.id } })) + 1;
 
   const pedido = await prisma.pedido.create({
@@ -199,6 +215,13 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       bairroEntregaNome,
       valorEntrega,
       formaPagamento: parsed.data.formaPagamento,
+      precisaTroco:
+        parsed.data.formaPagamento === 'dinheiro' ? (parsed.data.precisaTroco ?? false) : null,
+      trocoPara:
+        parsed.data.formaPagamento === 'dinheiro' && parsed.data.precisaTroco
+          ? parsed.data.trocoPara
+          : null,
+      tipoCartao: parsed.data.formaPagamento === 'cartao' ? parsed.data.tipoCartao : null,
       total,
     },
   });
@@ -218,6 +241,10 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       clienteNome: parsed.data.clienteNome,
       clienteTelefone: parsed.data.clienteTelefone,
       formaPagamento: parsed.data.formaPagamento,
+      precisaTroco: parsed.data.precisaTroco ?? false,
+      trocoPara: parsed.data.trocoPara ?? null,
+      tipoCartao: parsed.data.tipoCartao ?? null,
+      chavePix: loja.chavePix,
       linkAcompanhamento,
     },
   );

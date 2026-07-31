@@ -30,6 +30,7 @@ export function PainelLoja() {
           tagline: loja.tagline || null,
           logoUrl: loja.logoUrl || null,
           endereco: loja.endereco || null,
+          chavePix: loja.chavePix || null,
           telefoneWhatsapp: loja.telefoneWhatsapp,
           horarioAbertura: loja.horarioAbertura || null,
           horarioFechamento: loja.horarioFechamento || null,
@@ -104,6 +105,17 @@ export function PainelLoja() {
         placeholder="Rua, número, bairro, cidade"
         className="rounded-lg border border-gray-300 px-3 py-2"
       />
+
+      <label className="text-sm font-medium text-gray-700">Chave Pix</label>
+      <input
+        value={loja.chavePix ?? ''}
+        onChange={(e) => setLoja({ ...loja, chavePix: e.target.value })}
+        placeholder="CPF, e-mail, telefone ou chave aleatória"
+        className="rounded-lg border border-gray-300 px-3 py-2"
+      />
+      <p className="-mt-2 text-xs text-gray-500">
+        Aparece pro cliente no WhatsApp quando ele escolher pagar via Pix.
+      </p>
 
       <label className="text-sm font-medium text-gray-700">
         Telefone WhatsApp (com DDI+DDD, só números)

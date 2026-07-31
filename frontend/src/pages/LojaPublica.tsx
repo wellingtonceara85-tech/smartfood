@@ -21,6 +21,9 @@ export function LojaPublica() {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [formaPagamento, setFormaPagamento] = useState<FormaPagamento>('dinheiro');
+  const [precisaTroco, setPrecisaTroco] = useState(false);
+  const [trocoPara, setTrocoPara] = useState('');
+  const [tipoCartao, setTipoCartao] = useState<'debito' | 'credito' | null>(null);
   const [pedidoAnterior, setPedidoAnterior] = useState<PedidoAnterior | null>(null);
   const [finalizando, setFinalizando] = useState(false);
   const [erroPedido, setErroPedido] = useState<string | null>(null);
@@ -103,6 +106,9 @@ export function LojaPublica() {
     setCarrinho(novoCarrinho);
     setNome(pedidoAnterior.clienteNome);
     setFormaPagamento(pedidoAnterior.formaPagamento);
+    setPrecisaTroco(pedidoAnterior.precisaTroco ?? false);
+    setTrocoPara(pedidoAnterior.trocoPara ? String(pedidoAnterior.trocoPara) : '');
+    setTipoCartao(pedidoAnterior.tipoCartao ?? null);
 
     const bairroAindaAtivo = loja?.bairrosEntrega.some(
       (b) => b.id === pedidoAnterior.bairroEntregaId,
@@ -125,6 +131,8 @@ export function LojaPublica() {
   async function finalizarPedido() {
     if (!slug || itensCarrinho.length === 0 || !telefone || !nome.trim()) return;
     if (formaRecebimento === 'entrega' && !bairroSelecionadoId) return;
+    if (formaPagamento === 'cartao' && !tipoCartao) return;
+    if (formaPagamento === 'dinheiro' && precisaTroco && !trocoPara.trim()) return;
     setFinalizando(true);
     setErroPedido(null);
 
@@ -147,6 +155,12 @@ export function LojaPublica() {
           formaRecebimento,
           bairroEntregaId: formaRecebimento === 'entrega' ? bairroSelecionadoId : null,
           formaPagamento,
+          precisaTroco: formaPagamento === 'dinheiro' ? precisaTroco : null,
+          trocoPara:
+            formaPagamento === 'dinheiro' && precisaTroco && trocoPara.trim()
+              ? Number(trocoPara.replace(',', '.'))
+              : null,
+          tipoCartao: formaPagamento === 'cartao' ? tipoCartao : null,
         },
       });
       if (abaWhatsapp) {
@@ -265,8 +279,15 @@ export function LojaPublica() {
         bairroSelecionadoId={bairroSelecionadoId}
         aoMudarBairro={setBairroSelecionadoId}
         taxaEntrega={taxaEntrega}
+        chavePix={loja.chavePix}
         formaPagamento={formaPagamento}
         aoMudarFormaPagamento={setFormaPagamento}
+        precisaTroco={precisaTroco}
+        aoMudarPrecisaTroco={setPrecisaTroco}
+        trocoPara={trocoPara}
+        aoMudarTrocoPara={setTrocoPara}
+        tipoCartao={tipoCartao}
+        aoMudarTipoCartao={setTipoCartao}
       />
 
       <footer className="mx-auto max-w-2xl px-4 py-6 text-center text-xs text-gray-400">

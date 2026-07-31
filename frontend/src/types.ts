@@ -30,6 +30,7 @@ export interface LojaPublica {
   logoUrl: string | null;
   tagline: string | null;
   endereco: string | null;
+  chavePix: string | null;
   telefoneWhatsapp: string;
   aberto: boolean;
   categorias: Categoria[];
@@ -43,6 +44,7 @@ export interface Loja {
   logoUrl: string | null;
   tagline: string | null;
   endereco: string | null;
+  chavePix: string | null;
   telefoneWhatsapp: string;
   horarioAbertura: string | null;
   horarioFechamento: string | null;
@@ -99,6 +101,9 @@ export interface PedidoAnterior {
   bairroEntregaNome: string | null;
   valorEntrega: number;
   formaPagamento: FormaPagamento;
+  precisaTroco: boolean | null;
+  trocoPara: number | null;
+  tipoCartao: 'debito' | 'credito' | null;
   status: StatusPedido;
   total: number;
   criadoEm: string;
@@ -114,6 +119,9 @@ export interface PedidoAdmin {
   bairroEntregaNome: string | null;
   valorEntrega: number;
   formaPagamento: FormaPagamento;
+  precisaTroco: boolean | null;
+  trocoPara: number | null;
+  tipoCartao: 'debito' | 'credito' | null;
   status: StatusPedido;
   total: number;
   criadoEm: string;

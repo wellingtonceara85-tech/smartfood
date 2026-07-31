@@ -3,11 +3,18 @@ import { api } from '../lib/api';
 import { ORDEM_STATUS, rotuloStatus } from '../lib/statusPedido';
 import { PedidoAdmin, StatusPedido } from '../types';
 
-const LABEL_PAGAMENTO: Record<string, string> = {
-  dinheiro: 'Dinheiro',
-  cartao: 'Cartão',
-  pix: 'Pix',
-};
+function detalhePagamento(pedido: PedidoAdmin): string {
+  if (pedido.formaPagamento === 'dinheiro') {
+    return pedido.precisaTroco
+      ? `Dinheiro (troco para R$ ${(pedido.trocoPara ?? 0).toFixed(2)})`
+      : 'Dinheiro (sem troco)';
+  }
+  if (pedido.formaPagamento === 'cartao') {
+    return `Cartão - ${pedido.tipoCartao === 'credito' ? 'Crédito' : 'Débito'}`;
+  }
+  if (pedido.formaPagamento === 'pix') return 'Pix';
+  return pedido.formaPagamento;
+}
 
 function formatarData(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -78,7 +85,7 @@ export function PainelPedidos() {
               ? `Entrega - ${pedido.bairroEntregaNome} (R$ ${pedido.valorEntrega.toFixed(2)})`
               : 'Retirada no local'}
             {' · '}
-            {LABEL_PAGAMENTO[pedido.formaPagamento] ?? pedido.formaPagamento}
+            {detalhePagamento(pedido)}
           </p>
 
           <div className="mt-3 flex items-center gap-2">
