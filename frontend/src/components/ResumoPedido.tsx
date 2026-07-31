@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BairroEntrega, FormaPagamento, ItemCarrinho } from '../types';
 
 interface Props {
@@ -60,6 +61,19 @@ export function ResumoPedido({
   tipoCartao,
   aoMudarTipoCartao,
 }: Props) {
+  const [chavePixCopiada, setChavePixCopiada] = useState(false);
+
+  async function copiarChavePix() {
+    if (!chavePix) return;
+    try {
+      await navigator.clipboard.writeText(chavePix);
+      setChavePixCopiada(true);
+      setTimeout(() => setChavePixCopiada(false), 2000);
+    } catch {
+      // clipboard indisponível (ex: contexto não seguro) — sem feedback, cliente copia manualmente
+    }
+  }
+
   const entregaSemBairroEscolhido = formaRecebimento === 'entrega' && !bairroSelecionadoId;
   const trocoInvalido =
     formaPagamento === 'dinheiro' &&
@@ -248,8 +262,17 @@ export function ResumoPedido({
           )}
 
           {formaPagamento === 'pix' && chavePix && (
-            <div className="mb-2 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
-              Chave Pix da loja: <span className="font-medium text-gray-800">{chavePix}</span>
+            <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              <span>
+                Chave Pix da loja: <span className="font-medium text-gray-800">{chavePix}</span>
+              </span>
+              <button
+                type="button"
+                onClick={copiarChavePix}
+                className="shrink-0 rounded-md bg-white px-2 py-1 text-xs font-medium text-green-700 shadow-sm hover:bg-green-50"
+              >
+                {chavePixCopiada ? 'Copiado!' : 'Copiar'}
+              </button>
             </div>
           )}
 
