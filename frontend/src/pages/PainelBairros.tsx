@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { BairroEntrega } from '../types';
 
@@ -15,6 +15,14 @@ export function PainelBairros() {
   const [carregando, setCarregando] = useState(true);
   const [formulario, setFormulario] = useState<FormularioBairro | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const formularioRef = useRef<HTMLFormElement>(null);
+  const formularioAberto = formulario !== null;
+
+  useEffect(() => {
+    if (formularioAberto) {
+      formularioRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [formularioAberto]);
 
   async function carregar() {
     setCarregando(true);
@@ -142,6 +150,7 @@ export function PainelBairros() {
 
       {formulario && (
         <form
+          ref={formularioRef}
           onSubmit={salvar}
           className="flex max-w-sm flex-col gap-3 rounded-lg border bg-white p-4"
         >

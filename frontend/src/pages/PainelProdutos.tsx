@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, enviarFoto } from '../lib/api';
 import { Categoria, Produto } from '../types';
 
@@ -31,6 +31,16 @@ export function PainelProdutos() {
   const [enviandoFoto, setEnviandoFoto] = useState(false);
   const [categoriaEditandoId, setCategoriaEditandoId] = useState<string | null>(null);
   const [nomeCategoriaEditando, setNomeCategoriaEditando] = useState('');
+  const formularioRef = useRef<HTMLFormElement>(null);
+  const formularioAberto = formulario !== null;
+
+  // Dispara só quando o formulário abre/fecha (não a cada tecla digitada) — senão a
+  // página ficaria rolando de novo a cada alteração de campo.
+  useEffect(() => {
+    if (formularioAberto) {
+      formularioRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [formularioAberto]);
 
   async function carregar() {
     setCarregando(true);
@@ -305,6 +315,7 @@ export function PainelProdutos() {
 
       {formulario && (
         <form
+          ref={formularioRef}
           onSubmit={salvarProduto}
           className="flex flex-col gap-3 rounded-lg border bg-white p-4"
         >

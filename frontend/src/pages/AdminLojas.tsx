@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { LojaAdmin } from '../types';
@@ -43,6 +43,14 @@ export function AdminLojas() {
   const [formulario, setFormulario] = useState<FormularioLoja | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const formularioRef = useRef<HTMLFormElement>(null);
+  const formularioAberto = formulario !== null;
+
+  useEffect(() => {
+    if (formularioAberto) {
+      formularioRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [formularioAberto]);
 
   async function carregar() {
     setCarregando(true);
@@ -144,6 +152,7 @@ export function AdminLojas() {
 
         {formulario && (
           <form
+            ref={formularioRef}
             onSubmit={salvar}
             className="mt-6 flex flex-col gap-3 rounded-lg border bg-white p-4"
           >
