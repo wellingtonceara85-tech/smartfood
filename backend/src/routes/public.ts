@@ -14,6 +14,10 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
         orderBy: { ordem: 'asc' },
         include: { produtos: true },
       },
+      bairrosEntrega: {
+        where: { ativo: true },
+        orderBy: { nomeBairro: 'asc' },
+      },
     },
   });
 
@@ -30,6 +34,11 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     endereco: loja.endereco,
     telefoneWhatsapp: loja.telefoneWhatsapp,
     aberto: calcularAberto(loja),
+    bairrosEntrega: loja.bairrosEntrega.map((bairro) => ({
+      id: bairro.id,
+      nomeBairro: bairro.nomeBairro,
+      valorEntrega: Number(bairro.valorEntrega),
+    })),
     categorias: loja.categorias.map((categoria) => ({
       id: categoria.id,
       nome: categoria.nome,
@@ -75,6 +84,8 @@ const itemPedidoSchema = z.object({
 const criarPedidoSchema = z.object({
   clienteTelefone: z.string().min(8),
   itens: z.array(itemPedidoSchema).min(1),
+  formaRecebimento: z.enum(['entrega', 'retirada']),
+  bairroEntregaId: z.string().uuid().nullable().optional(),
 });
 
 publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
@@ -124,18 +135,46 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
     });
   }
 
-  const total = itensResolvidos.reduce((soma, item) => soma + item.subtotal, 0);
+  const subtotalItens = itensResolvidos.reduce((soma, item) => soma + item.subtotal, 0);
+
+  let valorEntrega = 0;
+  let bairroEntregaNome: string | null = null;
+
+  if (parsed.data.formaRecebimento === 'entrega') {
+    if (!parsed.data.bairroEntregaId) {
+      return res.status(400).json({ erro: 'Selecione um bairro para entrega' });
+    }
+    const bairro = await prisma.bairroEntrega.findFirst({
+      where: { id: parsed.data.bairroEntregaId, lojaId: loja.id, ativo: true },
+    });
+    if (!bairro) {
+      return res.status(400).json({ erro: 'Bairro de entrega inválido para esta loja' });
+    }
+    valorEntrega = Number(bairro.valorEntrega);
+    bairroEntregaNome = bairro.nomeBairro;
+  }
+
+  const total = subtotalItens + valorEntrega;
 
   const pedido = await prisma.pedido.create({
     data: {
       lojaId: loja.id,
       clienteTelefone: parsed.data.clienteTelefone,
       itens: itensResolvidos,
+      formaRecebimento: parsed.data.formaRecebimento,
+      bairroEntregaId:
+        parsed.data.formaRecebimento === 'entrega' ? parsed.data.bairroEntregaId : null,
+      bairroEntregaNome,
+      valorEntrega,
       total,
     },
   });
 
-  const mensagem = montarMensagemPedido(loja.nome, itensResolvidos, total);
+  const mensagem = montarMensagemPedido(loja.nome, itensResolvidos, total, {
+    forma: parsed.data.formaRecebimento,
+    bairroNome: bairroEntregaNome,
+    valorEntrega,
+  });
   const linkWhatsapp = `https://wa.me/${loja.telefoneWhatsapp}?text=${encodeURIComponent(mensagem)}`;
 
   res.status(201).json({ pedido, mensagem, linkWhatsapp });

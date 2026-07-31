@@ -16,6 +16,8 @@ export function LojaPublica() {
   const [pedidoAnterior, setPedidoAnterior] = useState<PedidoAnterior | null>(null);
   const [finalizando, setFinalizando] = useState(false);
   const [erroPedido, setErroPedido] = useState<string | null>(null);
+  const [formaRecebimento, setFormaRecebimento] = useState<'entrega' | 'retirada'>('retirada');
+  const [bairroSelecionadoId, setBairroSelecionadoId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -85,13 +87,28 @@ export function LojaPublica() {
       novoCarrinho[`${item.produtoId}-${item.opcao ?? ''}`] = item;
     }
     setCarrinho(novoCarrinho);
+
+    const bairroAindaAtivo = loja?.bairrosEntrega.some(
+      (b) => b.id === pedidoAnterior.bairroEntregaId,
+    );
+    if (pedidoAnterior.formaRecebimento === 'entrega' && bairroAindaAtivo) {
+      setFormaRecebimento('entrega');
+      setBairroSelecionadoId(pedidoAnterior.bairroEntregaId);
+    } else {
+      setFormaRecebimento('retirada');
+      setBairroSelecionadoId(null);
+    }
   }
 
   const itensCarrinho = Object.values(carrinho);
-  const total = itensCarrinho.reduce((soma, item) => soma + item.preco * item.quantidade, 0);
+  const subtotal = itensCarrinho.reduce((soma, item) => soma + item.preco * item.quantidade, 0);
+  const bairroSelecionado = loja?.bairrosEntrega.find((b) => b.id === bairroSelecionadoId) ?? null;
+  const taxaEntrega = formaRecebimento === 'entrega' ? (bairroSelecionado?.valorEntrega ?? 0) : 0;
+  const total = subtotal + taxaEntrega;
 
   async function finalizarPedido() {
     if (!slug || itensCarrinho.length === 0 || !telefone) return;
+    if (formaRecebimento === 'entrega' && !bairroSelecionadoId) return;
     setFinalizando(true);
     setErroPedido(null);
     try {
@@ -104,6 +121,8 @@ export function LojaPublica() {
             opcao: item.opcao,
             quantidade: item.quantidade,
           })),
+          formaRecebimento,
+          bairroEntregaId: formaRecebimento === 'entrega' ? bairroSelecionadoId : null,
         },
       });
       window.open(resposta.linkWhatsapp, '_blank');
@@ -208,6 +227,12 @@ export function LojaPublica() {
         aoFinalizar={finalizarPedido}
         finalizando={finalizando}
         removerItem={removerItem}
+        bairros={loja.bairrosEntrega}
+        formaRecebimento={formaRecebimento}
+        aoMudarFormaRecebimento={setFormaRecebimento}
+        bairroSelecionadoId={bairroSelecionadoId}
+        aoMudarBairro={setBairroSelecionadoId}
+        taxaEntrega={taxaEntrega}
       />
 
       <footer className="mx-auto max-w-2xl px-4 py-6 text-center text-xs text-gray-400">

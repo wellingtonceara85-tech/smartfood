@@ -1,4 +1,4 @@
-import { Prisma, Produto } from '@prisma/client';
+import { BairroEntrega, Prisma, Produto } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
@@ -6,6 +6,10 @@ import { prisma } from '../prisma';
 
 function serializarProduto(produto: Produto) {
   return { ...produto, preco: Number(produto.preco) };
+}
+
+function serializarBairro(bairro: BairroEntrega) {
+  return { ...bairro, valorEntrega: Number(bairro.valorEntrega) };
 }
 
 export const adminRouter = Router();
@@ -221,5 +225,65 @@ adminRouter.delete('/produtos/:id', async (req, res) => {
   if (!existente) return res.status(404).json({ erro: 'Produto não encontrado' });
 
   await prisma.produto.delete({ where: { id: existente.id } });
+  res.status(204).send();
+});
+
+// --- Bairros de entrega ---
+
+adminRouter.get('/bairros', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const bairros = await prisma.bairroEntrega.findMany({
+    where: { lojaId },
+    orderBy: { nomeBairro: 'asc' },
+  });
+  res.json(bairros.map(serializarBairro));
+});
+
+const bairroSchema = z.object({
+  nomeBairro: z.string().min(1),
+  valorEntrega: z.number().nonnegative(),
+  ativo: z.boolean().optional(),
+});
+
+adminRouter.post('/bairros', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = bairroSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const bairro = await prisma.bairroEntrega.create({ data: { ...parsed.data, lojaId } });
+  res.status(201).json(serializarBairro(bairro));
+});
+
+adminRouter.put('/bairros/:id', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = bairroSchema.partial().safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const existente = await prisma.bairroEntrega.findFirst({ where: { id: req.params.id, lojaId } });
+  if (!existente) return res.status(404).json({ erro: 'Bairro não encontrado' });
+
+  const bairro = await prisma.bairroEntrega.update({
+    where: { id: existente.id },
+    data: parsed.data,
+  });
+  res.json(serializarBairro(bairro));
+});
+
+adminRouter.delete('/bairros/:id', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const existente = await prisma.bairroEntrega.findFirst({ where: { id: req.params.id, lojaId } });
+  if (!existente) return res.status(404).json({ erro: 'Bairro não encontrado' });
+
+  await prisma.bairroEntrega.delete({ where: { id: existente.id } });
   res.status(204).send();
 });

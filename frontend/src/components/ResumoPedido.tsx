@@ -1,4 +1,4 @@
-import { ItemCarrinho } from '../types';
+import { BairroEntrega, ItemCarrinho } from '../types';
 
 interface Props {
   itens: ItemCarrinho[];
@@ -8,6 +8,12 @@ interface Props {
   aoFinalizar: () => void;
   finalizando: boolean;
   removerItem: (chave: string) => void;
+  bairros: BairroEntrega[];
+  formaRecebimento: 'entrega' | 'retirada';
+  aoMudarFormaRecebimento: (forma: 'entrega' | 'retirada') => void;
+  bairroSelecionadoId: string | null;
+  aoMudarBairro: (id: string | null) => void;
+  taxaEntrega: number;
 }
 
 export function ResumoPedido({
@@ -18,7 +24,15 @@ export function ResumoPedido({
   aoFinalizar,
   finalizando,
   removerItem,
+  bairros,
+  formaRecebimento,
+  aoMudarFormaRecebimento,
+  bairroSelecionadoId,
+  aoMudarBairro,
+  taxaEntrega,
 }: Props) {
+  const entregaSemBairroEscolhido = formaRecebimento === 'entrega' && !bairroSelecionadoId;
+
   return (
     <div className="fixed inset-x-0 bottom-0 border-t bg-white p-3 shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
       <div className="mx-auto max-w-2xl">
@@ -46,7 +60,57 @@ export function ResumoPedido({
                 </span>
               </li>
             ))}
+            {formaRecebimento === 'entrega' && taxaEntrega > 0 && (
+              <li className="flex justify-between py-0.5 text-gray-500">
+                <span>Taxa de entrega</span>
+                <span>R$ {taxaEntrega.toFixed(2)}</span>
+              </li>
+            )}
           </ul>
+        )}
+
+        {bairros.length > 0 && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-lg border border-gray-300">
+              <button
+                type="button"
+                onClick={() => aoMudarFormaRecebimento('retirada')}
+                className={`px-3 py-1.5 text-sm font-medium ${
+                  formaRecebimento === 'retirada'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-gray-600'
+                }`}
+              >
+                Retirada
+              </button>
+              <button
+                type="button"
+                onClick={() => aoMudarFormaRecebimento('entrega')}
+                className={`px-3 py-1.5 text-sm font-medium ${
+                  formaRecebimento === 'entrega'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-gray-600'
+                }`}
+              >
+                Entrega
+              </button>
+            </div>
+
+            {formaRecebimento === 'entrega' && (
+              <select
+                value={bairroSelecionadoId ?? ''}
+                onChange={(e) => aoMudarBairro(e.target.value || null)}
+                className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                <option value="">Selecione o bairro</option>
+                {bairros.map((bairro) => (
+                  <option key={bairro.id} value={bairro.id}>
+                    {bairro.nomeBairro} — R$ {bairro.valorEntrega.toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         )}
 
         <input
@@ -60,7 +124,7 @@ export function ResumoPedido({
           <span className="font-semibold text-gray-800">Total: R$ {total.toFixed(2)}</span>
           <button
             type="button"
-            disabled={itens.length === 0 || !telefone || finalizando}
+            disabled={itens.length === 0 || !telefone || finalizando || entregaSemBairroEscolhido}
             onClick={aoFinalizar}
             className="rounded-full bg-green-600 px-5 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-50"
           >

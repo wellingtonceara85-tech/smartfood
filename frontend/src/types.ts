@@ -16,6 +16,13 @@ export interface Categoria {
   produtos: Produto[];
 }
 
+export interface BairroEntrega {
+  id: string;
+  nomeBairro: string;
+  valorEntrega: number;
+  ativo?: boolean;
+}
+
 export interface LojaPublica {
   id: string;
   nome: string;
@@ -26,6 +33,7 @@ export interface LojaPublica {
   telefoneWhatsapp: string;
   aberto: boolean;
   categorias: Categoria[];
+  bairrosEntrega: BairroEntrega[];
 }
 
 export interface Loja {
@@ -61,6 +69,10 @@ export interface PedidoAnterior {
   id: string;
   clienteTelefone: string;
   itens: ItemCarrinho[];
+  formaRecebimento: 'entrega' | 'retirada';
+  bairroEntregaId: string | null;
+  bairroEntregaNome: string | null;
+  valorEntrega: number;
   total: number;
   criadoEm: string;
 }

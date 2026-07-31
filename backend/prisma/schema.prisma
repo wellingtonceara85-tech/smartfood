@@ -38,10 +38,11 @@ model Loja {
   abertoManual      Boolean? @map("aberto_manual")
   criadoEm          DateTime @default(now()) @map("criado_em")
 
-  usuarios   Usuario[]
-  categorias Categoria[]
-  produtos   Produto[]
-  pedidos    Pedido[]
+  usuarios       Usuario[]
+  categorias     Categoria[]
+  produtos       Produto[]
+  pedidos        Pedido[]
+  bairrosEntrega BairroEntrega[]
 
   @@map("lojas")
 }
@@ -76,13 +77,29 @@ model Produto {
 }
 
 model Pedido {
-  id             String   @id @default(uuid())
-  lojaId         String   @map("loja_id")
-  loja           Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
-  clienteTelefone String  @map("cliente_telefone")
-  itens          Json
-  total          Decimal  @db.Decimal(10, 2)
-  criadoEm       DateTime @default(now()) @map("criado_em")
+  id                String   @id @default(uuid())
+  lojaId            String   @map("loja_id")
+  loja              Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  clienteTelefone   String   @map("cliente_telefone")
+  itens             Json
+  formaRecebimento  String   @default("retirada") @map("forma_recebimento")
+  bairroEntregaId   String?  @map("bairro_entrega_id")
+  bairroEntregaNome String?  @map("bairro_entrega_nome")
+  valorEntrega      Decimal  @default(0) @db.Decimal(10, 2) @map("valor_entrega")
+  total             Decimal  @db.Decimal(10, 2)
+  criadoEm          DateTime @default(now()) @map("criado_em")
 
   @@map("pedidos")
+}
+
+model BairroEntrega {
+  id           String   @id @default(uuid())
+  lojaId       String   @map("loja_id")
+  loja         Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  nomeBairro   String   @map("nome_bairro")
+  valorEntrega Decimal  @db.Decimal(10, 2) @map("valor_entrega")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  @@map("bairros_entrega")
 }

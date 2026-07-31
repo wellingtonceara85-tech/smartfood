@@ -5,12 +5,19 @@ interface ItemMensagem {
   subtotal: number;
 }
 
+interface RecebimentoMensagem {
+  forma: 'entrega' | 'retirada';
+  bairroNome?: string | null;
+  valorEntrega?: number;
+}
+
 const moeda = (valor: number) => `R$ ${valor.toFixed(2).replace('.', ',')}`;
 
 export function montarMensagemPedido(
   nomeLoja: string,
   itens: ItemMensagem[],
   total: number,
+  recebimento: RecebimentoMensagem,
 ): string {
   const linhas = [`Pedido - ${nomeLoja}`, ''];
 
@@ -19,7 +26,12 @@ export function montarMensagemPedido(
     linhas.push(`${item.quantidade}x ${item.nome}${descricaoOpcao} - ${moeda(item.subtotal)}`);
   }
 
-  linhas.push('', `Total: ${moeda(total)}`);
+  const linhaRecebimento =
+    recebimento.forma === 'entrega'
+      ? `Forma de recebimento: Entrega - ${recebimento.bairroNome} (${moeda(recebimento.valorEntrega ?? 0)})`
+      : 'Forma de recebimento: Retirada no local';
+
+  linhas.push('', linhaRecebimento, '', `Total: ${moeda(total)}`);
 
   return linhas.join('\n');
 }
