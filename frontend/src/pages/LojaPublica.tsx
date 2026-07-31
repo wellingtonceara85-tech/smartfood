@@ -111,6 +111,12 @@ export function LojaPublica() {
     if (formaRecebimento === 'entrega' && !bairroSelecionadoId) return;
     setFinalizando(true);
     setErroPedido(null);
+
+    // Abre a aba já aqui, ainda dentro do clique do usuário — se abrir só depois do
+    // await da API, o navegador (principalmente no celular) não reconhece mais como
+    // resposta direta ao clique e bloqueia a aba silenciosamente como pop-up.
+    const abaWhatsapp = window.open('', '_blank');
+
     try {
       const resposta = await api<{ linkWhatsapp: string }>(`/api/public/lojas/${slug}/pedidos`, {
         method: 'POST',
@@ -125,9 +131,15 @@ export function LojaPublica() {
           bairroEntregaId: formaRecebimento === 'entrega' ? bairroSelecionadoId : null,
         },
       });
-      window.open(resposta.linkWhatsapp, '_blank');
+      if (abaWhatsapp) {
+        abaWhatsapp.location.href = resposta.linkWhatsapp;
+      } else {
+        // Aba bloqueada mesmo assim (ex: usuário desativou pop-ups) — navega a própria página.
+        window.location.href = resposta.linkWhatsapp;
+      }
       setCarrinho({});
     } catch (e) {
+      abaWhatsapp?.close();
       setErroPedido(e instanceof Error ? e.message : 'Não foi possível finalizar o pedido');
     } finally {
       setFinalizando(false);
