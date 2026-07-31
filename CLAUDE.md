@@ -2,7 +2,7 @@
 
 Cardápio digital público por loja (MVP), inspirado no whatsmenu.com.br: o cliente abre o link da loja (`/:slug`), monta o pedido e finaliza direto no WhatsApp do estabelecimento — sem checkout online, sem pagamento integrado. O dono da loja tem um painel simples pra cadastrar produtos e controlar disponibilidade em tempo real.
 
-Escopo, modelo de dados, telas e critérios de aceite completos em [PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md](PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md) — esse arquivo é a fonte da verdade do MVP atual.
+Escopo, modelo de dados, telas e critérios de aceite completos em [PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md](PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md) — esse arquivo é a fonte da verdade do MVP atual. Features adicionadas depois têm prompt próprio: [PROMPT_CLAUDE_CODE_SMARTFOOD_TAXA_ENTREGA.md](PROMPT_CLAUDE_CODE_SMARTFOOD_TAXA_ENTREGA.md). Infra de deploy: [PROMPT_CLAUDE_CODE_SMARTFOOD_DEPLOY_FIREBASE_NEON.md](PROMPT_CLAUDE_CODE_SMARTFOOD_DEPLOY_FIREBASE_NEON.md).
 
 ## Histórico
 
@@ -19,7 +19,7 @@ Não reintroduzir, sem pedido explícito do usuário: arquitetura DDD/camadas se
 - Banco: PostgreSQL, schema único, tabelas simples (`loja_id` como FK, sem multi-schema)
 - ORM: Prisma
 - Auth: JWT + refresh token, RBAC simples (`dono_loja`, `admin_master`)
-- Deploy: Docker + Railway; local via `docker-compose up`
+- Deploy (fase de demonstração, custo esperado US$ 0): Firebase Hosting (frontend) + Cloud Functions (backend, `backend/src/functions.ts` envolve o Express existente) + Neon (Postgres); local via `docker-compose up` (Postgres + backend + frontend em containers, sem Firebase/Neon)
 
 `frontend/` e `backend/` são dois projetos simples, sem monorepo com workspace manager obrigatório.
 

@@ -1,17 +1,27 @@
 import 'dotenv/config';
 
-function required(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Variável de ambiente ausente: ${name}`);
-  return value;
+// Não lança erro em falta de variável no carregamento do módulo: no Cloud Functions v2,
+// secrets só são injetados no processo em tempo de requisição, não durante a fase de
+// descoberta do `firebase deploy` (que já importa este módulo). Lido via getter para
+// pegar o valor mais recente de process.env no momento do uso, não no import.
+function lido(name: string, fallback = ''): string {
+  return process.env[name] ?? fallback;
 }
 
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3001),
-  databaseUrl: required('DATABASE_URL'),
-  jwtSecret: required('JWT_SECRET'),
+  get databaseUrl() {
+    return lido('DATABASE_URL');
+  },
+  get jwtSecret() {
+    return lido('JWT_SECRET');
+  },
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN ?? '15m',
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
-  corsOrigin: process.env.CORS_ORIGIN ?? '*',
+  get corsOrigin() {
+    return lido('CORS_ORIGIN', '*')
+      .split(',')
+      .map((origem) => origem.trim());
+  },
 };

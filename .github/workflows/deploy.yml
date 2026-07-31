@@ -1,0 +1,50 @@
+name: Deploy (Firebase)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências do backend
+        run: npm install
+        working-directory: backend
+
+      - name: Instalar dependências do frontend
+        run: npm install
+        working-directory: frontend
+
+      - name: Gerar Prisma Client
+        run: npm run prisma:generate
+        working-directory: backend
+
+      - name: Build do frontend
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_URL: https://southamerica-east1-smartfood-3ab25.cloudfunctions.net/api
+
+      - name: Deploy Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SMARTFOOD }}
+          projectId: smartfood-3ab25
+          channelId: live
+
+      - name: Deploy Functions
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > /tmp/service-account.json
+          npx firebase-tools deploy --only functions --project smartfood-3ab25 --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/service-account.json
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SMARTFOOD }}

@@ -40,3 +40,7 @@ backend/uploads/
 
 # Husky (v9 gera _/ opcionalmente)
 .husky/_/
+
+# Firebase CLI (cache local de deploy, não versionar)
+.firebase/
+backend/.env.smartfood-3ab25.local
