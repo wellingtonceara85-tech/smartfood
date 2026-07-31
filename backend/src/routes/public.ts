@@ -31,6 +31,7 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     nome: loja.nome,
     slug: loja.slug,
     logoUrl: loja.logoUrl,
+    capaUrl: loja.capaUrl,
     tagline: loja.tagline,
     endereco: loja.endereco,
     chavePix: loja.chavePix,

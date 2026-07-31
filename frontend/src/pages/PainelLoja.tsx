@@ -1,5 +1,6 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api, enviarFoto } from '../lib/api';
+import { ModalImagem } from '../components/ModalImagem';
 import { Loja } from '../types';
 
 export function PainelLoja() {
@@ -7,8 +8,13 @@ export function PainelLoja() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [enviandoLogo, setEnviandoLogo] = useState(false);
+  const [enviandoCapa, setEnviandoCapa] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [modalAberto, setModalAberto] = useState<'logo' | 'capa' | null>(null);
+
+  const inputLogoRef = useRef<HTMLInputElement>(null);
+  const inputCapaRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api<Loja>('/api/admin/loja', { autenticado: true })
@@ -29,6 +35,7 @@ export function PainelLoja() {
           nome: loja.nome,
           tagline: loja.tagline || null,
           logoUrl: loja.logoUrl || null,
+          capaUrl: loja.capaUrl || null,
           endereco: loja.endereco || null,
           chavePix: loja.chavePix || null,
           telefoneWhatsapp: loja.telefoneWhatsapp,
@@ -61,6 +68,23 @@ export function PainelLoja() {
     }
   }
 
+  async function aoSelecionarCapa(evento: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = evento.target.files?.[0];
+    if (!arquivo || !loja) return;
+
+    setEnviandoCapa(true);
+    setErro(null);
+    try {
+      const url = await enviarFoto(arquivo);
+      setLoja({ ...loja, capaUrl: url });
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao enviar a capa');
+    } finally {
+      setEnviandoCapa(false);
+      evento.target.value = '';
+    }
+  }
+
   if (carregando) return <p className="text-gray-500">Carregando...</p>;
   if (!loja) return <p className="text-red-600">Não foi possível carregar a loja.</p>;
 
@@ -86,16 +110,54 @@ export function PainelLoja() {
       <label className="text-sm font-medium text-gray-700">Logo</label>
       <div className="flex items-center gap-3">
         {loja.logoUrl && (
-          <img
-            src={loja.logoUrl}
-            alt="Logo da loja"
-            className="h-16 w-16 rounded-full object-cover"
-          />
+          <button type="button" onClick={() => setModalAberto('logo')} className="shrink-0">
+            <img
+              src={loja.logoUrl}
+              alt="Logo da loja"
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          </button>
         )}
         <div className="flex flex-col gap-1">
-          <input type="file" accept="image/*" onChange={aoSelecionarLogo} className="text-sm" />
+          <input
+            ref={inputLogoRef}
+            type="file"
+            accept="image/*"
+            onChange={aoSelecionarLogo}
+            className="text-sm"
+          />
           {enviandoLogo && <span className="text-xs text-gray-500">Enviando...</span>}
         </div>
+      </div>
+
+      <label className="text-sm font-medium text-gray-700">Capa</label>
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => loja.capaUrl && setModalAberto('capa')}
+          className="aspect-[3/1] w-full max-w-sm overflow-hidden rounded-lg bg-gray-100"
+        >
+          {loja.capaUrl ? (
+            <img src={loja.capaUrl} alt="Capa da loja" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
+              Sem capa cadastrada
+            </div>
+          )}
+        </button>
+        <div className="flex flex-col gap-1">
+          <input
+            ref={inputCapaRef}
+            type="file"
+            accept="image/*"
+            onChange={aoSelecionarCapa}
+            className="text-sm"
+          />
+          {enviandoCapa && <span className="text-xs text-gray-500">Enviando...</span>}
+        </div>
+        <p className="text-xs text-gray-500">
+          Recomendado: imagem horizontal, mínimo 1200x400px, pra não ficar borrada
+        </p>
       </div>
 
       <label className="text-sm font-medium text-gray-700">Endereço</label>
@@ -172,11 +234,35 @@ export function PainelLoja() {
 
       <button
         type="submit"
-        disabled={salvando || enviandoLogo}
+        disabled={salvando || enviandoLogo || enviandoCapa}
         className="mt-2 rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-60"
       >
         {salvando ? 'Salvando...' : 'Salvar'}
       </button>
+
+      {modalAberto === 'logo' && loja.logoUrl && (
+        <ModalImagem
+          titulo="Logo da loja"
+          src={loja.logoUrl}
+          aoFechar={() => setModalAberto(null)}
+          aoAlterar={() => {
+            setModalAberto(null);
+            inputLogoRef.current?.click();
+          }}
+        />
+      )}
+
+      {modalAberto === 'capa' && loja.capaUrl && (
+        <ModalImagem
+          titulo="Capa da loja"
+          src={loja.capaUrl}
+          aoFechar={() => setModalAberto(null)}
+          aoAlterar={() => {
+            setModalAberto(null);
+            inputCapaRef.current?.click();
+          }}
+        />
+      )}
     </form>
   );
 }

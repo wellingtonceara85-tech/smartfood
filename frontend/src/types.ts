@@ -28,6 +28,7 @@ export interface LojaPublica {
   nome: string;
   slug: string;
   logoUrl: string | null;
+  capaUrl: string | null;
   tagline: string | null;
   endereco: string | null;
   chavePix: string | null;
@@ -42,6 +43,7 @@ export interface Loja {
   nome: string;
   slug: string;
   logoUrl: string | null;
+  capaUrl: string | null;
   tagline: string | null;
   endereco: string | null;
   chavePix: string | null;

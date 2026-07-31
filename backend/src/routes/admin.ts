@@ -48,6 +48,7 @@ const atualizarLojaSchema = z.object({
   nome: z.string().min(1).optional(),
   tagline: z.string().nullable().optional(),
   logoUrl: z.string().url().nullable().optional(),
+  capaUrl: z.string().url().nullable().optional(),
   endereco: z.string().nullable().optional(),
   chavePix: z.string().nullable().optional(),
   telefoneWhatsapp: z.string().min(8).optional(),

@@ -193,7 +193,14 @@ export function LojaPublica() {
   return (
     <div className={`min-h-screen bg-gray-50 ${itensCarrinho.length > 0 ? 'pb-20' : 'pb-6'}`}>
       <header className="relative bg-white pb-4 text-center">
-        <div className="h-28 bg-gradient-to-r from-green-600 to-emerald-500" />
+        {loja.capaUrl ? (
+          <div
+            className="h-28 bg-cover bg-center"
+            style={{ backgroundImage: `url(${loja.capaUrl})` }}
+          />
+        ) : (
+          <div className="h-28 bg-gradient-to-r from-green-600 to-emerald-500" />
+        )}
 
         <span
           className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold text-white shadow ${
