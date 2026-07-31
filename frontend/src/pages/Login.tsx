@@ -13,8 +13,8 @@ export function Login() {
     evento.preventDefault();
     setErro(null);
     try {
-      await login(email, senha);
-      navigate('/painel/produtos');
+      const usuario = await login(email, senha);
+      navigate(usuario.papel === 'admin_master' ? '/admin/lojas' : '/painel/produtos');
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao entrar');
     }

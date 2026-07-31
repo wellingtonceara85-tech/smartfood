@@ -3,6 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import { env } from './env';
 import { adminRouter } from './routes/admin';
+import { adminMasterRouter } from './routes/adminMaster';
 import { authRouter } from './routes/auth';
 import { publicRouter } from './routes/public';
 import { uploadRouter } from './routes/upload';
@@ -21,6 +22,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/public', publicRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/admin/upload', uploadRouter);
+app.use('/api/admin-master', adminMasterRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ erro: 'Rota não encontrada' });

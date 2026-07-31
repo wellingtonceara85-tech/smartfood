@@ -5,7 +5,7 @@ import { Usuario } from '../types';
 interface AuthContextValue {
   usuario: Usuario | null;
   carregando: boolean;
-  login: (email: string, senha: string) => Promise<void>;
+  login: (email: string, senha: string) => Promise<Usuario>;
   logout: () => void;
 }
 
@@ -31,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       salvarTokens(dados.accessToken, dados.refreshToken);
       localStorage.setItem('smartfood_usuario', JSON.stringify(dados.usuario));
       setUsuario(dados.usuario);
+      return dados.usuario;
     } finally {
       setCarregando(false);
     }

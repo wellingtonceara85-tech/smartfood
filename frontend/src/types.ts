@@ -65,6 +65,16 @@ export interface Usuario {
   lojaId: string | null;
 }
 
+export interface LojaAdmin {
+  id: string;
+  nome: string;
+  slug: string;
+  telefoneWhatsapp: string;
+  criadoEm: string;
+  totalProdutos: number;
+  totalPedidos: number;
+}
+
 export interface PedidoAnterior {
   id: string;
   clienteTelefone: string;
