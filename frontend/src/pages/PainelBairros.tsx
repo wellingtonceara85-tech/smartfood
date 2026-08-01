@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { Alert } from '../components/ui/Alert';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Input } from '../components/ui/Input';
+import { Loading } from '../components/ui/Loading';
 import { api } from '../lib/api';
 import { BairroEntrega } from '../types';
 
@@ -93,103 +100,96 @@ export function PainelBairros() {
     }
   }
 
-  if (carregando) return <p className="text-gray-500">Carregando...</p>;
+  if (carregando) return <Loading />;
 
   return (
     <div className="flex flex-col gap-6">
       <section>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800">Bairros de entrega</h2>
-          <button
-            onClick={() => setFormulario(formularioVazio)}
-            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-          >
+          <h2 className="text-lg font-semibold text-gray-800">Bairros de entrega</h2>
+          <Button tamanho="sm" onClick={() => setFormulario(formularioVazio)}>
             Novo bairro
-          </button>
+          </Button>
         </div>
 
-        <ul className="flex flex-col gap-2">
-          {bairros.map((bairro) => (
-            <li
-              key={bairro.id}
-              className="flex items-center justify-between rounded-lg border bg-white p-3"
-            >
-              <div className={bairro.ativo ? '' : 'opacity-50'}>
-                <p className="font-medium text-gray-800">{bairro.nomeBairro}</p>
-                <p className="text-sm text-gray-500">R$ {bairro.valorEntrega.toFixed(2)}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-1 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={bairro.ativo}
-                    onChange={() => alternarAtivo(bairro)}
-                  />
-                  Ativo
-                </label>
-                <button
-                  onClick={() => editar(bairro)}
-                  className="text-sm font-medium text-blue-600 hover:underline"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => excluir(bairro.id)}
-                  className="text-sm font-medium text-red-600 hover:underline"
-                >
-                  Excluir
-                </button>
-              </div>
-            </li>
-          ))}
-          {bairros.length === 0 && (
-            <p className="text-sm text-gray-500">Nenhum bairro cadastrado ainda.</p>
-          )}
-        </ul>
+        {bairros.length === 0 ? (
+          <EmptyState
+            icone="🛵"
+            titulo="Nenhum bairro cadastrado"
+            descricao="Cadastre os bairros que sua loja atende e o valor da taxa de entrega de cada um."
+            acao={
+              <Button tamanho="sm" onClick={() => setFormulario(formularioVazio)}>
+                Novo bairro
+              </Button>
+            }
+          />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {bairros.map((bairro) => (
+              <li key={bairro.id}>
+                <Card className="flex flex-wrap items-center justify-between gap-3 p-3 transition-shadow hover:shadow-card-hover">
+                  <div className={`flex items-center gap-2 ${bairro.ativo ? '' : 'opacity-50'}`}>
+                    <div>
+                      <p className="font-medium text-gray-800">{bairro.nomeBairro}</p>
+                      <p className="text-sm text-gray-500">R$ {bairro.valorEntrega.toFixed(2)}</p>
+                    </div>
+                    <Badge cor={bairro.ativo ? 'primary' : 'gray'}>
+                      {bairro.ativo ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={bairro.ativo}
+                        onChange={() => alternarAtivo(bairro)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      Ativo
+                    </label>
+                    <Button variante="ghost" tamanho="sm" onClick={() => editar(bairro)}>
+                      Editar
+                    </Button>
+                    <Button variante="ghost-danger" tamanho="sm" onClick={() => excluir(bairro.id)}>
+                      Excluir
+                    </Button>
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {formulario && (
-        <form
-          ref={formularioRef}
-          onSubmit={salvar}
-          className="flex max-w-sm flex-col gap-3 rounded-lg border bg-white p-4"
-        >
-          <h3 className="font-semibold text-gray-800">
-            {formulario.id ? 'Editar bairro' : 'Novo bairro'}
-          </h3>
+        <form ref={formularioRef} onSubmit={salvar} className="max-w-sm">
+          <Card className="flex flex-col gap-3">
+            <h3 className="font-semibold text-gray-800">
+              {formulario.id ? 'Editar bairro' : 'Novo bairro'}
+            </h3>
 
-          <input
-            required
-            placeholder="Nome do bairro"
-            value={formulario.nomeBairro}
-            onChange={(e) => setFormulario({ ...formulario, nomeBairro: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2"
-          />
-          <input
-            required
-            placeholder="Valor da entrega (ex: 8.00)"
-            value={formulario.valorEntrega}
-            onChange={(e) => setFormulario({ ...formulario, valorEntrega: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2"
-          />
+            <Input
+              required
+              placeholder="Nome do bairro"
+              value={formulario.nomeBairro}
+              onChange={(e) => setFormulario({ ...formulario, nomeBairro: e.target.value })}
+            />
+            <Input
+              required
+              placeholder="Valor da entrega (ex: 8.00)"
+              value={formulario.valorEntrega}
+              onChange={(e) => setFormulario({ ...formulario, valorEntrega: e.target.value })}
+            />
 
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
+            {erro && <Alert tipo="erro">{erro}</Alert>}
 
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              className="rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700"
-            >
-              Salvar
-            </button>
-            <button
-              type="button"
-              onClick={() => setFormulario(null)}
-              className="rounded-lg bg-gray-200 px-4 py-2 font-medium text-gray-700"
-            >
-              Cancelar
-            </button>
-          </div>
+            <div className="flex gap-2">
+              <Button type="submit">Salvar</Button>
+              <Button type="button" variante="secondary" onClick={() => setFormulario(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </Card>
         </form>
       )}
     </div>

@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Loading } from '../components/ui/Loading';
 import { api } from '../lib/api';
-import { DashboardResumo } from '../types';
+import { DashboardResumo, PedidoAdmin, Produto } from '../types';
 
 function formatarISO(data: Date): string {
   const ano = data.getFullYear();
@@ -24,10 +28,27 @@ function inicioDoMesISO(): string {
   return formatarISO(new Date(agora.getFullYear(), agora.getMonth(), 1));
 }
 
+interface StatCardProps {
+  titulo: string;
+  valor: string;
+}
+
+function StatCard({ titulo, valor }: StatCardProps) {
+  return (
+    <Card>
+      <p className="text-xs font-medium text-gray-500">{titulo}</p>
+      <p className="mt-1 text-2xl font-bold text-gray-800">{valor}</p>
+    </Card>
+  );
+}
+
 export function PainelDashboard() {
   const [dataInicio, setDataInicio] = useState(hojeISO());
   const [dataFim, setDataFim] = useState(hojeISO());
+  const [periodoAtivo, setPeriodoAtivo] = useState<'hoje' | '7dias' | 'mes' | 'custom'>('hoje');
   const [resumo, setResumo] = useState<DashboardResumo | null>(null);
+  const [pedidosEmPreparo, setPedidosEmPreparo] = useState<number | null>(null);
+  const [totalProdutos, setTotalProdutos] = useState<number | null>(null);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -39,23 +60,39 @@ export function PainelDashboard() {
       .finally(() => setCarregando(false));
   }, [dataInicio, dataFim]);
 
-  function aplicarPeriodo(inicio: string, fim: string) {
+  useEffect(() => {
+    api<PedidoAdmin[]>('/api/admin/pedidos', { autenticado: true }).then((pedidos) => {
+      setPedidosEmPreparo(pedidos.filter((p) => p.status === 'em_preparo').length);
+    });
+    api<Produto[]>('/api/admin/produtos', { autenticado: true }).then((produtos) => {
+      setTotalProdutos(produtos.length);
+    });
+  }, []);
+
+  function aplicarPeriodo(inicio: string, fim: string, chave: typeof periodoAtivo) {
     setDataInicio(inicio);
     setDataFim(fim);
+    setPeriodoAtivo(chave);
   }
+
+  const botaoPeriodo = (chave: typeof periodoAtivo) =>
+    periodoAtivo === chave ? 'primary' : 'secondary';
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="font-semibold text-gray-800">Dashboard</h2>
+      <h2 className="text-lg font-semibold text-gray-800">Dashboard</h2>
 
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-white p-3">
+      <Card className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-600">De</label>
           <input
             type="date"
             value={dataInicio}
-            onChange={(e) => setDataInicio(e.target.value)}
-            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            onChange={(e) => {
+              setDataInicio(e.target.value);
+              setPeriodoAtivo('custom');
+            }}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -63,73 +100,72 @@ export function PainelDashboard() {
           <input
             type="date"
             value={dataFim}
-            onChange={(e) => setDataFim(e.target.value)}
-            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+            onChange={(e) => {
+              setDataFim(e.target.value);
+              setPeriodoAtivo('custom');
+            }}
+            className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
         <div className="flex gap-2">
-          <button
+          <Button
             type="button"
-            onClick={() => aplicarPeriodo(hojeISO(), hojeISO())}
-            className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+            tamanho="sm"
+            variante={botaoPeriodo('hoje')}
+            onClick={() => aplicarPeriodo(hojeISO(), hojeISO(), 'hoje')}
           >
             Hoje
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            onClick={() => aplicarPeriodo(diasAtrasISO(6), hojeISO())}
-            className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+            tamanho="sm"
+            variante={botaoPeriodo('7dias')}
+            onClick={() => aplicarPeriodo(diasAtrasISO(6), hojeISO(), '7dias')}
           >
             7 dias
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            onClick={() => aplicarPeriodo(inicioDoMesISO(), hojeISO())}
-            className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+            tamanho="sm"
+            variante={botaoPeriodo('mes')}
+            onClick={() => aplicarPeriodo(inicioDoMesISO(), hojeISO(), 'mes')}
           >
             Este mês
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
-      {carregando && <p className="text-gray-500">Carregando...</p>}
+      {carregando && <Loading />}
 
       {!carregando && resumo && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            <div className="rounded-lg border bg-white p-4">
-              <p className="text-xs font-medium text-gray-500">Faturamento</p>
-              <p className="mt-1 text-2xl font-bold text-gray-800">
-                R$ {resumo.faturamentoTotal.toFixed(2)}
-              </p>
-            </div>
-            <div className="rounded-lg border bg-white p-4">
-              <p className="text-xs font-medium text-gray-500">Pedidos</p>
-              <p className="mt-1 text-2xl font-bold text-gray-800">{resumo.totalPedidos}</p>
-            </div>
-            <div className="rounded-lg border bg-white p-4">
-              <p className="text-xs font-medium text-gray-500">Ticket médio</p>
-              <p className="mt-1 text-2xl font-bold text-gray-800">
-                R$ {resumo.ticketMedio.toFixed(2)}
-              </p>
-            </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+            <StatCard titulo="Faturamento" valor={`R$ ${resumo.faturamentoTotal.toFixed(2)}`} />
+            <StatCard titulo="Pedidos no período" valor={String(resumo.totalPedidos)} />
+            <StatCard titulo="Ticket médio" valor={`R$ ${resumo.ticketMedio.toFixed(2)}`} />
+            <StatCard
+              titulo="Pedidos em preparo"
+              valor={pedidosEmPreparo === null ? '—' : String(pedidosEmPreparo)}
+            />
+            <StatCard
+              titulo="Produtos cadastrados"
+              valor={totalProdutos === null ? '—' : String(totalProdutos)}
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-lg border bg-white p-4">
+            <Card>
               <p className="text-xs font-medium text-gray-500">Produto mais vendido</p>
               {resumo.produtoMaisVendido ? (
-                <p className="mt-1 text-lg font-semibold text-gray-800">
+                <p className="mt-1 flex flex-wrap items-center gap-2 text-lg font-semibold text-gray-800">
                   {resumo.produtoMaisVendido.nome}
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    ({resumo.produtoMaisVendido.quantidade}x vendidos)
-                  </span>
+                  <Badge cor="primary">{resumo.produtoMaisVendido.quantidade}x vendidos</Badge>
                 </p>
               ) : (
                 <p className="mt-1 text-sm text-gray-400">Sem vendas no período</p>
               )}
-            </div>
-            <div className="rounded-lg border bg-white p-4">
+            </Card>
+            <Card>
               <p className="text-xs font-medium text-gray-500">Cliente que mais compra</p>
               {resumo.clienteTop ? (
                 <>
@@ -145,7 +181,7 @@ export function PainelDashboard() {
               ) : (
                 <p className="mt-1 text-sm text-gray-400">Sem pedidos no período</p>
               )}
-            </div>
+            </Card>
           </div>
         </>
       )}

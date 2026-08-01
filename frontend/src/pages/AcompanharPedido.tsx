@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { Card } from '../components/ui/Card';
+import { Loading } from '../components/ui/Loading';
 import { api } from '../lib/api';
 import { ORDEM_STATUS_CLIENTE, rotuloStatus } from '../lib/statusPedido';
 import { PedidoAcompanhamento } from '../types';
@@ -28,7 +30,11 @@ export function AcompanharPedido() {
   }
 
   if (!pedido) {
-    return <p className="p-6 text-center text-gray-500">Carregando...</p>;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loading />
+      </div>
+    );
   }
 
   // Pro cliente, "finalizado" (arquivamento interno do lojista) aparece como entregue/retirado.
@@ -37,11 +43,11 @@ export function AcompanharPedido() {
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="mx-auto max-w-md rounded-xl bg-white p-6 shadow">
+      <Card className="mx-auto max-w-md shadow-card-hover">
         {slug && (
           <Link
             to={`/${slug}`}
-            className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:underline"
+            className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-primary-hover hover:underline"
           >
             ← Voltar ao cardápio
           </Link>
@@ -53,18 +59,18 @@ export function AcompanharPedido() {
           {ORDEM_STATUS_CLIENTE.map((status, i) => (
             <div key={status} className="flex flex-1 flex-col items-center">
               <div
-                className={`h-3 w-3 rounded-full ${i <= passoAtual ? 'bg-green-600' : 'bg-gray-200'}`}
+                className={`h-3 w-3 rounded-full transition-colors ${i <= passoAtual ? 'bg-primary' : 'bg-gray-200'}`}
               />
               {i < ORDEM_STATUS_CLIENTE.length - 1 && (
                 <div
-                  className={`mt-1.5 h-0.5 w-full ${i < passoAtual ? 'bg-green-600' : 'bg-gray-200'}`}
+                  className={`mt-1.5 h-0.5 w-full transition-colors ${i < passoAtual ? 'bg-primary' : 'bg-gray-200'}`}
                 />
               )}
             </div>
           ))}
         </div>
 
-        <p className="text-center text-lg font-semibold text-green-700">
+        <p className="text-center text-lg font-semibold text-primary-hover">
           {rotuloStatus(statusExibido, pedido.formaRecebimento)}
         </p>
 
@@ -89,7 +95,7 @@ export function AcompanharPedido() {
         <p className="mt-2 text-right font-semibold text-gray-800">
           Total: R$ {pedido.total.toFixed(2)}
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

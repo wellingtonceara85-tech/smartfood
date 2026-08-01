@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Produto } from '../types';
+import { Card } from './ui/Card';
 
 interface Props {
   produto: Produto;
@@ -13,23 +14,29 @@ export function CardProduto({ produto, aoAdicionar }: Props) {
   const indisponivel = !produto.disponivel;
 
   return (
-    <div
-      className={`flex justify-between gap-3 rounded-lg border bg-white p-3 transition-shadow duration-150 hover:shadow-md ${indisponivel ? 'opacity-50' : ''}`}
+    <Card
+      className={`flex justify-between gap-4 p-4 transition-shadow duration-150 hover:shadow-card-hover ${indisponivel ? 'opacity-60' : ''}`}
     >
       <div className="flex flex-1 flex-col">
-        <p className="font-medium text-gray-800">{produto.nome}</p>
-        {produto.descricao && <p className="text-sm text-gray-500">{produto.descricao}</p>}
-        <p className="mt-1 font-semibold text-gray-800">R$ {produto.preco.toFixed(2)}</p>
+        <p className="font-semibold text-gray-800">{produto.nome}</p>
+        {produto.descricao && (
+          <p className="mt-0.5 line-clamp-2 text-sm text-gray-500">{produto.descricao}</p>
+        )}
+        <p className="mt-1.5 text-base font-bold text-primary-hover">
+          R$ {produto.preco.toFixed(2)}
+        </p>
 
         {indisponivel ? (
-          <p className="mt-2 text-sm text-gray-400">Indisponível no momento</p>
+          <span className="mt-2 inline-flex w-fit items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+            Indisponível no momento
+          </span>
         ) : (
           <div className="mt-2 flex flex-wrap items-center gap-2">
             {produto.opcoes && produto.opcoes.length > 0 && (
               <select
                 value={opcao}
                 onChange={(e) => setOpcao(e.target.value)}
-                className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
+                className="rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {produto.opcoes.map((op) => (
                   <option key={op} value={op}>
@@ -43,7 +50,8 @@ export function CardProduto({ produto, aoAdicionar }: Props) {
               <button
                 type="button"
                 onClick={() => setQuantidade((q) => Math.max(1, q - 1))}
-                className="h-7 w-7 rounded-full bg-gray-200 font-bold text-gray-700"
+                aria-label="Diminuir quantidade"
+                className="h-7 w-7 rounded-full bg-gray-100 font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 -
               </button>
@@ -51,7 +59,8 @@ export function CardProduto({ produto, aoAdicionar }: Props) {
               <button
                 type="button"
                 onClick={() => setQuantidade((q) => q + 1)}
-                className="h-7 w-7 rounded-full bg-gray-200 font-bold text-gray-700"
+                aria-label="Aumentar quantidade"
+                className="h-7 w-7 rounded-full bg-gray-100 font-bold text-gray-700 transition-colors hover:bg-gray-200"
               >
                 +
               </button>
@@ -60,7 +69,7 @@ export function CardProduto({ produto, aoAdicionar }: Props) {
             <button
               type="button"
               onClick={() => aoAdicionar(produto, opcao || null, quantidade)}
-              className="ml-auto rounded-full bg-green-600 px-3 py-1 text-sm font-medium text-white hover:bg-green-700"
+              className="ml-auto rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover"
             >
               Adicionar
             </button>
@@ -72,11 +81,11 @@ export function CardProduto({ produto, aoAdicionar }: Props) {
         <img
           src={produto.fotoUrl}
           alt={produto.nome}
-          className="h-24 w-24 shrink-0 rounded-lg object-cover"
+          className="h-28 w-28 shrink-0 rounded-lg object-cover"
         />
       ) : (
-        <div className="h-24 w-24 shrink-0 rounded-lg bg-gray-100" />
+        <div className="h-28 w-28 shrink-0 rounded-lg bg-gray-100" />
       )}
-    </div>
+    </Card>
   );
 }

@@ -239,35 +239,35 @@ export function LojaPublica() {
 
   return (
     <div className={`min-h-screen bg-gray-50 ${itensCarrinho.length > 0 ? 'pb-20' : 'pb-6'}`}>
-      <header className="relative bg-white pb-4 text-center">
+      <header className="relative bg-white pb-5 text-center">
         {loja.capaUrl ? (
           <div
-            className="h-28 bg-cover bg-center"
+            className="h-32 bg-cover bg-center sm:h-44"
             style={{ backgroundImage: `url(${loja.capaUrl})` }}
           />
         ) : (
-          <div className="h-28 bg-gradient-to-r from-green-600 to-emerald-500" />
+          <div className="h-32 bg-gradient-to-r from-primary to-primary-hover sm:h-44" />
         )}
 
         <span
           className={`absolute right-4 top-4 rounded-full px-4 py-1.5 text-sm font-bold text-white shadow ${
-            loja.aberto ? 'bg-green-600' : 'bg-red-500'
+            loja.aberto ? 'bg-primary' : 'bg-red-500'
           }`}
         >
           {loja.aberto ? 'Aberto' : 'Fechado'}
         </span>
 
-        <div className="-mt-12 flex flex-col items-center gap-1 px-4">
+        <div className="-mt-14 flex flex-col items-center gap-1 px-4">
           {loja.logoUrl ? (
             <img
               src={loja.logoUrl}
               alt={loja.nome}
-              className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-md"
+              className="h-28 w-28 rounded-full border-4 border-white object-cover shadow-md"
             />
           ) : (
-            <div className="h-24 w-24 rounded-full border-4 border-white bg-gray-200 shadow-md" />
+            <div className="h-28 w-28 rounded-full border-4 border-white bg-gray-200 shadow-md" />
           )}
-          <h1 className="mt-1 text-xl font-bold text-gray-800">{loja.nome}</h1>
+          <h1 className="mt-2 text-xl font-bold text-gray-800">{loja.nome}</h1>
           {loja.tagline && <p className="text-sm text-gray-500">{loja.tagline}</p>}
         </div>
       </header>
@@ -277,14 +277,14 @@ export function LojaPublica() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Pesquisar produtos por nome ou descrição"
-          className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2"
+          className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
 
         {pedidoAnterior && (
           <button
             type="button"
             onClick={pedirDeNovo}
-            className="mb-3 rounded-full bg-blue-100 px-3 py-1.5 text-sm font-medium text-blue-700"
+            className="mb-3 rounded-full bg-secondary-light px-3 py-1.5 text-sm font-medium text-secondary-hover transition-colors hover:opacity-90"
           >
             Pedir de novo (último pedido)
           </button>
@@ -297,10 +297,10 @@ export function LojaPublica() {
                 key={categoria.id}
                 type="button"
                 onClick={() => irParaCategoria(categoria.id)}
-                className={`shrink-0 border-b-2 px-1 pb-2 text-sm font-medium ${
+                className={`shrink-0 border-b-2 px-1 pb-2 text-sm font-medium transition-colors ${
                   categoriaAtiva === categoria.id
-                    ? 'border-green-600 text-green-700'
-                    : 'border-transparent text-gray-500'
+                    ? 'border-primary text-primary-hover'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
                 {categoria.nome}
@@ -329,7 +329,7 @@ export function LojaPublica() {
                 data-categoria-id={categoria.id}
                 className="scroll-mt-16"
               >
-                <h2 className="mb-2 text-base font-semibold text-gray-800">{categoria.nome}</h2>
+                <h2 className="mb-2 text-lg font-semibold text-gray-800">{categoria.nome}</h2>
                 <div className="flex flex-col gap-3">
                   {categoria.produtos.map((produto) => (
                     <CardProduto

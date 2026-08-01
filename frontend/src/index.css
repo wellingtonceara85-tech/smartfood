@@ -1,3 +1,23 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Tokens de tema — cor primária/secundária padrão da marca SmartFood.
+ * Uma loja específica poderá futuramente sobrescrever essas variáveis
+ * (ex: injetando um <style> ou atributo style no elemento raiz) para ter
+ * sua própria identidade visual, sem precisar duplicar componentes.
+ */
+:root {
+  --color-primary: #16a34a; /* green-600 */
+  --color-primary-hover: #15803d; /* green-700 */
+  --color-primary-light: #dcfce7; /* green-100 */
+  --color-secondary: #2563eb; /* blue-600 */
+  --color-secondary-hover: #1d4ed8; /* blue-700 */
+  --color-secondary-light: #dbeafe; /* blue-100 */
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

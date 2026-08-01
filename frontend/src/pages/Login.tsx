@@ -1,5 +1,9 @@
 import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Alert } from '../components/ui/Alert';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
 
 export function Login() {
@@ -14,7 +18,7 @@ export function Login() {
     setErro(null);
     try {
       const usuario = await login(email, senha);
-      navigate(usuario.papel === 'admin_master' ? '/admin/lojas' : '/painel/produtos');
+      navigate(usuario.papel === 'admin_master' ? '/admin/lojas' : '/painel/dashboard');
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao entrar');
     }
@@ -22,36 +26,38 @@ export function Login() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <form onSubmit={aoEnviar} className="w-full max-w-sm rounded-xl bg-white p-6 shadow">
-        <h1 className="mb-4 text-xl font-bold text-gray-800">Entrar</h1>
+      <form onSubmit={aoEnviar} className="w-full max-w-sm">
+        <Card className="shadow-card-hover">
+          <h1 className="mb-4 text-xl font-bold text-gray-800">Entrar</h1>
 
-        <label className="mb-1 block text-sm font-medium text-gray-700">E-mail</label>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-600 focus:outline-none"
-        />
+          <label className="mb-1 block text-sm font-medium text-gray-700">E-mail</label>
+          <Input
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="mb-3"
+          />
 
-        <label className="mb-1 block text-sm font-medium text-gray-700">Senha</label>
-        <input
-          type="password"
-          required
-          value={senha}
-          onChange={(e) => setSenha(e.target.value)}
-          className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-green-600 focus:outline-none"
-        />
+          <label className="mb-1 block text-sm font-medium text-gray-700">Senha</label>
+          <Input
+            type="password"
+            required
+            value={senha}
+            onChange={(e) => setSenha(e.target.value)}
+            className="mb-4"
+          />
 
-        {erro && <p className="mb-3 text-sm text-red-600">{erro}</p>}
+          {erro && (
+            <div className="mb-3">
+              <Alert tipo="erro">{erro}</Alert>
+            </div>
+          )}
 
-        <button
-          type="submit"
-          disabled={carregando}
-          className="w-full rounded-lg bg-green-600 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-60"
-        >
-          {carregando ? 'Entrando...' : 'Entrar'}
-        </button>
+          <Button type="submit" disabled={carregando} className="w-full">
+            {carregando ? 'Entrando...' : 'Entrar'}
+          </Button>
+        </Card>
       </form>
     </div>
   );

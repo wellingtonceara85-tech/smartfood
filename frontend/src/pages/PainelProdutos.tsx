@@ -1,4 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { Alert } from '../components/ui/Alert';
+import { Badge } from '../components/ui/Badge';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { EmptyState } from '../components/ui/EmptyState';
+import { Input } from '../components/ui/Input';
+import { Loading } from '../components/ui/Loading';
+import { Select } from '../components/ui/Select';
+import { Textarea } from '../components/ui/Textarea';
 import { api, enviarFoto } from '../lib/api';
 import { Categoria, Produto } from '../types';
 
@@ -176,29 +185,29 @@ export function PainelProdutos() {
     });
   }
 
-  if (carregando) return <p className="text-gray-500">Carregando...</p>;
+  if (carregando) return <Loading />;
 
   return (
     <div className="flex flex-col gap-6">
       <section>
-        <h2 className="mb-2 font-semibold text-gray-800">Categorias</h2>
+        <h2 className="mb-2 text-lg font-semibold text-gray-800">Categorias</h2>
         <div className="flex flex-wrap gap-2">
           {categorias.map((categoria) =>
             categoriaEditandoId === categoria.id ? (
               <span
                 key={categoria.id}
-                className="flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1"
+                className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1"
               >
                 <input
                   autoFocus
                   value={nomeCategoriaEditando}
                   onChange={(e) => setNomeCategoriaEditando(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && salvarEdicaoCategoria(categoria.id)}
-                  className="w-28 rounded border border-gray-300 px-1.5 py-0.5 text-sm"
+                  className="w-28 rounded border border-gray-300 px-1.5 py-0.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 />
                 <button
                   onClick={() => salvarEdicaoCategoria(categoria.id)}
-                  className="text-xs font-medium text-green-700 hover:underline"
+                  className="text-xs font-medium text-primary hover:underline"
                 >
                   Salvar
                 </button>
@@ -212,12 +221,12 @@ export function PainelProdutos() {
             ) : (
               <span
                 key={categoria.id}
-                className="flex items-center gap-1.5 rounded-full bg-gray-200 px-3 py-1 text-sm text-gray-700"
+                className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700 transition-colors hover:bg-gray-200"
               >
                 {categoria.nome}
                 <button
                   onClick={() => iniciarEdicaoCategoria(categoria)}
-                  className="text-gray-500 hover:text-blue-600"
+                  className="text-gray-400 hover:text-secondary"
                   title="Editar categoria"
                   aria-label="Editar categoria"
                 >
@@ -225,7 +234,7 @@ export function PainelProdutos() {
                 </button>
                 <button
                   onClick={() => excluirCategoria(categoria.id)}
-                  className="text-gray-500 hover:text-red-600"
+                  className="text-gray-400 hover:text-red-600"
                   title="Excluir categoria"
                   aria-label="Excluir categoria"
                 >
@@ -236,169 +245,166 @@ export function PainelProdutos() {
           )}
         </div>
         <div className="mt-2 flex gap-2">
-          <input
+          <Input
             value={novaCategoria}
             onChange={(e) => setNovaCategoria(e.target.value)}
             placeholder="Nova categoria"
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+            className="max-w-xs"
           />
-          <button
-            onClick={criarCategoria}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-          >
+          <Button variante="secondary" tamanho="sm" onClick={criarCategoria}>
             Adicionar
-          </button>
+          </Button>
         </div>
       </section>
 
       <section>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800">Produtos</h2>
-          <button
-            onClick={() => setFormulario(formularioVazio)}
-            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
-          >
+          <h2 className="text-lg font-semibold text-gray-800">Produtos</h2>
+          <Button tamanho="sm" onClick={() => setFormulario(formularioVazio)}>
             Novo produto
-          </button>
+          </Button>
         </div>
 
-        <ul className="flex flex-col gap-2">
-          {produtos.map((produto) => (
-            <li
-              key={produto.id}
-              className="flex items-center justify-between rounded-lg border bg-white p-3"
-            >
-              <div className={`flex items-center gap-3 ${produto.disponivel ? '' : 'opacity-50'}`}>
-                {produto.fotoUrl ? (
-                  <img
-                    src={produto.fotoUrl}
-                    alt={produto.nome}
-                    className="h-12 w-12 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="h-12 w-12 rounded-lg bg-gray-100" />
-                )}
-                <div>
-                  <p className="font-medium text-gray-800">{produto.nome}</p>
-                  <p className="text-sm text-gray-500">R$ {produto.preco.toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-1 text-sm text-gray-600">
-                  <input
-                    type="checkbox"
-                    checked={produto.disponivel}
-                    onChange={() => alternarDisponibilidade(produto)}
-                  />
-                  Disponível
-                </label>
-                <button
-                  onClick={() => editar(produto)}
-                  className="text-sm font-medium text-blue-600 hover:underline"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => excluirProduto(produto.id)}
-                  className="text-sm font-medium text-red-600 hover:underline"
-                >
-                  Excluir
-                </button>
-              </div>
-            </li>
-          ))}
-          {produtos.length === 0 && (
-            <p className="text-sm text-gray-500">Nenhum produto cadastrado ainda.</p>
-          )}
-        </ul>
+        {produtos.length === 0 ? (
+          <EmptyState
+            icone="🍔"
+            titulo="Nenhum produto cadastrado"
+            descricao="Cadastre o primeiro produto do seu cardápio pra começar a vender."
+            acao={
+              <Button tamanho="sm" onClick={() => setFormulario(formularioVazio)}>
+                Novo produto
+              </Button>
+            }
+          />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {produtos.map((produto) => (
+              <li key={produto.id}>
+                <Card className="flex flex-wrap items-center justify-between gap-3 p-3 transition-shadow hover:shadow-card-hover">
+                  <div
+                    className={`flex items-center gap-3 ${produto.disponivel ? '' : 'opacity-50'}`}
+                  >
+                    {produto.fotoUrl ? (
+                      <img
+                        src={produto.fotoUrl}
+                        alt={produto.nome}
+                        className="h-12 w-12 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="h-12 w-12 rounded-lg bg-gray-100" />
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-800">{produto.nome}</p>
+                      <p className="text-sm text-gray-500">R$ {produto.preco.toFixed(2)}</p>
+                    </div>
+                    <Badge cor={produto.disponivel ? 'primary' : 'gray'}>
+                      {produto.disponivel ? 'Disponível' : 'Indisponível'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-1.5 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={produto.disponivel}
+                        onChange={() => alternarDisponibilidade(produto)}
+                        className="h-4 w-4 accent-primary"
+                      />
+                      Disponível
+                    </label>
+                    <Button variante="ghost" tamanho="sm" onClick={() => editar(produto)}>
+                      Editar
+                    </Button>
+                    <Button
+                      variante="ghost-danger"
+                      tamanho="sm"
+                      onClick={() => excluirProduto(produto.id)}
+                    >
+                      Excluir
+                    </Button>
+                  </div>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {formulario && (
-        <form
-          ref={formularioRef}
-          onSubmit={salvarProduto}
-          className="flex flex-col gap-3 rounded-lg border bg-white p-4"
-        >
-          <h3 className="font-semibold text-gray-800">
-            {formulario.id ? 'Editar produto' : 'Novo produto'}
-          </h3>
+        <form ref={formularioRef} onSubmit={salvarProduto}>
+          <Card className="flex flex-col gap-3">
+            <h3 className="font-semibold text-gray-800">
+              {formulario.id ? 'Editar produto' : 'Novo produto'}
+            </h3>
 
-          <select
-            required
-            value={formulario.categoriaId}
-            onChange={(e) => setFormulario({ ...formulario, categoriaId: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2"
-          >
-            <option value="">Selecione a categoria</option>
-            {categorias.map((categoria) => (
-              <option key={categoria.id} value={categoria.id}>
-                {categoria.nome}
-              </option>
-            ))}
-          </select>
-
-          <input
-            required
-            placeholder="Nome"
-            value={formulario.nome}
-            onChange={(e) => setFormulario({ ...formulario, nome: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2"
-          />
-          <textarea
-            placeholder="Descrição"
-            value={formulario.descricao}
-            onChange={(e) => setFormulario({ ...formulario, descricao: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2"
-          />
-          <input
-            required
-            placeholder="Preço (ex: 22.90)"
-            value={formulario.preco}
-            onChange={(e) => setFormulario({ ...formulario, preco: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2"
-          />
-          <div className="flex items-center gap-3">
-            {formulario.fotoUrl && (
-              <img
-                src={formulario.fotoUrl}
-                alt="Foto do produto"
-                className="h-16 w-16 rounded-lg object-cover"
-              />
-            )}
-            <label className="flex cursor-pointer flex-col gap-1">
-              <span className="text-sm font-medium text-gray-700">Foto do produto</span>
-              <input type="file" accept="image/*" onChange={aoSelecionarFoto} className="text-sm" />
-              {enviandoFoto && <span className="text-xs text-gray-500">Enviando...</span>}
-              <span className="text-xs text-gray-500">
-                Recomendado: foto quadrada, mínimo 600x600px, produto centralizado
-              </span>
-            </label>
-          </div>
-          <input
-            placeholder="Opções separadas por vírgula (ex: Ao ponto, Bem passado)"
-            value={formulario.opcoes}
-            onChange={(e) => setFormulario({ ...formulario, opcoes: e.target.value })}
-            className="rounded-lg border border-gray-300 px-3 py-2"
-          />
-
-          {erro && <p className="text-sm text-red-600">{erro}</p>}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={enviandoFoto}
-              className="rounded-lg bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 disabled:opacity-60"
+            <Select
+              required
+              value={formulario.categoriaId}
+              onChange={(e) => setFormulario({ ...formulario, categoriaId: e.target.value })}
             >
-              Salvar
-            </button>
-            <button
-              type="button"
-              onClick={() => setFormulario(null)}
-              className="rounded-lg bg-gray-200 px-4 py-2 font-medium text-gray-700"
-            >
-              Cancelar
-            </button>
-          </div>
+              <option value="">Selecione a categoria</option>
+              {categorias.map((categoria) => (
+                <option key={categoria.id} value={categoria.id}>
+                  {categoria.nome}
+                </option>
+              ))}
+            </Select>
+
+            <Input
+              required
+              placeholder="Nome"
+              value={formulario.nome}
+              onChange={(e) => setFormulario({ ...formulario, nome: e.target.value })}
+            />
+            <Textarea
+              placeholder="Descrição"
+              value={formulario.descricao}
+              onChange={(e) => setFormulario({ ...formulario, descricao: e.target.value })}
+            />
+            <Input
+              required
+              placeholder="Preço (ex: 22.90)"
+              value={formulario.preco}
+              onChange={(e) => setFormulario({ ...formulario, preco: e.target.value })}
+            />
+            <div className="flex items-center gap-3">
+              {formulario.fotoUrl && (
+                <img
+                  src={formulario.fotoUrl}
+                  alt="Foto do produto"
+                  className="h-16 w-16 rounded-lg object-cover"
+                />
+              )}
+              <label className="flex cursor-pointer flex-col gap-1">
+                <span className="text-sm font-medium text-gray-700">Foto do produto</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={aoSelecionarFoto}
+                  className="text-sm"
+                />
+                {enviandoFoto && <span className="text-xs text-gray-500">Enviando...</span>}
+                <span className="text-xs text-gray-500">
+                  Recomendado: foto quadrada, mínimo 600x600px, produto centralizado
+                </span>
+              </label>
+            </div>
+            <Input
+              placeholder="Opções separadas por vírgula (ex: Ao ponto, Bem passado)"
+              value={formulario.opcoes}
+              onChange={(e) => setFormulario({ ...formulario, opcoes: e.target.value })}
+            />
+
+            {erro && <Alert tipo="erro">{erro}</Alert>}
+
+            <div className="flex gap-2">
+              <Button type="submit" disabled={enviandoFoto}>
+                Salvar
+              </Button>
+              <Button type="button" variante="secondary" onClick={() => setFormulario(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </Card>
         </form>
       )}
     </div>
