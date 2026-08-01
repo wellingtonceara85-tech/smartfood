@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BarraResumoCompacta } from '../components/BarraResumoCompacta';
 import { CardProduto } from '../components/CardProduto';
 import { ResumoPedido } from '../components/ResumoPedido';
 import { api } from '../lib/api';
+import { montarVariaveisTema } from '../lib/cor';
 import {
   FormaPagamento,
   ItemCarrinho,
@@ -35,6 +36,13 @@ export function LojaPublica() {
 
   useEffect(() => {
     if (!slug) return;
+    // Reseta o estado da loja anterior antes de buscar a nova — sem isso, ao
+    // navegar entre dois cardápios diferentes na mesma sessão (ex: o
+    // admin_master abrindo lojas em sequência), o tema/conteúdo da loja
+    // anterior ficaria visível por um instante até a nova requisição terminar.
+    setLoja(null);
+    setErroCarregamento(false);
+    setCategoriaAtiva(null);
     api<LojaPublicaTipo>(`/api/public/lojas/${slug}`)
       .then((dados) => {
         setLoja(dados);
@@ -42,6 +50,14 @@ export function LojaPublica() {
       })
       .catch(() => setErroCarregamento(true));
   }, [slug]);
+
+  const variaveisTema = useMemo(
+    () =>
+      loja
+        ? (montarVariaveisTema(loja.corPrimaria, loja.corSecundaria) as CSSProperties)
+        : undefined,
+    [loja?.corPrimaria, loja?.corSecundaria],
+  );
 
   useEffect(() => {
     if (!slug) return;
@@ -238,7 +254,10 @@ export function LojaPublica() {
   }
 
   return (
-    <div className={`min-h-screen bg-gray-50 ${itensCarrinho.length > 0 ? 'pb-20' : 'pb-6'}`}>
+    <div
+      style={variaveisTema}
+      className={`min-h-screen bg-gray-50 ${itensCarrinho.length > 0 ? 'pb-20' : 'pb-6'}`}
+    >
       <header className="relative bg-white pb-5 text-center">
         {loja.capaUrl ? (
           <div
@@ -250,8 +269,8 @@ export function LojaPublica() {
         )}
 
         <span
-          className={`absolute right-4 top-4 rounded-full px-4 py-1.5 text-sm font-bold text-white shadow ${
-            loja.aberto ? 'bg-primary' : 'bg-red-500'
+          className={`absolute right-4 top-4 rounded-full px-4 py-1.5 text-sm font-bold shadow ${
+            loja.aberto ? 'bg-primary text-primary-text' : 'bg-red-500 text-white'
           }`}
         >
           {loja.aberto ? 'Aberto' : 'Fechado'}

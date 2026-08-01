@@ -34,6 +34,8 @@ export interface LojaPublica {
   chavePix: string | null;
   telefoneWhatsapp: string;
   aberto: boolean;
+  corPrimaria: string;
+  corSecundaria: string;
   categorias: Categoria[];
   bairrosEntrega: BairroEntrega[];
 }
@@ -51,6 +53,8 @@ export interface Loja {
   horarioAbertura: string | null;
   horarioFechamento: string | null;
   abertoManual: boolean | null;
+  corPrimaria: string;
+  corSecundaria: string;
 }
 
 export interface ItemCarrinho {

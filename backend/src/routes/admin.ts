@@ -3,6 +3,12 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
 import { prisma } from '../prisma';
+import { HEX_REGEX, normalizarCor } from '../utils/cor';
+
+const corHexSchema = z
+  .string()
+  .regex(HEX_REGEX, 'Cor inválida — use o formato #RRGGBB')
+  .transform(normalizarCor);
 
 function serializarProduto(produto: Produto) {
   return { ...produto, preco: Number(produto.preco) };
@@ -60,6 +66,8 @@ const atualizarLojaSchema = z.object({
   horarioAbertura: z.string().nullable().optional(),
   horarioFechamento: z.string().nullable().optional(),
   abertoManual: z.boolean().nullable().optional(),
+  corPrimaria: corHexSchema.optional(),
+  corSecundaria: corHexSchema.optional(),
 });
 
 adminRouter.put('/loja', async (req, res) => {

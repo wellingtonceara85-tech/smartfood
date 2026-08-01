@@ -36,7 +36,7 @@ const OPCOES_PAGAMENTO_BASE: { valor: FormaPagamento; rotulo: string; icone: str
   { valor: 'cartao', rotulo: 'Cartão', icone: '💳' },
 ];
 
-const SEGMENTO_ATIVO = 'bg-primary text-white';
+const SEGMENTO_ATIVO = 'bg-primary text-primary-text';
 const SEGMENTO_INATIVO = 'bg-white text-gray-600 hover:bg-gray-50';
 const RUBRICA = 'mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500';
 

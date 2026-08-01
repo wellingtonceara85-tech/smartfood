@@ -38,6 +38,8 @@ model Loja {
   horarioAbertura   String?  @map("horario_abertura")
   horarioFechamento String?  @map("horario_fechamento")
   abertoManual      Boolean? @map("aberto_manual")
+  corPrimaria       String   @default("#16A34A") @map("cor_primaria")
+  corSecundaria     String   @default("#15803D") @map("cor_secundaria")
   criadoEm          DateTime @default(now()) @map("criado_em")
 
   usuarios       Usuario[]

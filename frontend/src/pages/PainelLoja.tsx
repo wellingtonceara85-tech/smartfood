@@ -1,11 +1,20 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ModalImagem } from '../components/ModalImagem';
+import { PreviewIdentidadeVisual } from '../components/PreviewIdentidadeVisual';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Loading } from '../components/ui/Loading';
 import { Select } from '../components/ui/Select';
+import {
+  COR_PRIMARIA_PADRAO,
+  COR_SECUNDARIA_PADRAO,
+  PALETAS_PRONTAS,
+  PaletaCores,
+  corValida,
+  normalizarCor,
+} from '../lib/cor';
 import { api, enviarFoto } from '../lib/api';
 import { Loja } from '../types';
 
@@ -20,9 +29,23 @@ export function PainelLoja() {
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState<'logo' | 'capa' | null>(null);
+  const [corPrimariaTexto, setCorPrimariaTexto] = useState('');
+  const [corSecundariaTexto, setCorSecundariaTexto] = useState('');
 
   const inputLogoRef = useRef<HTMLInputElement>(null);
   const inputCapaRef = useRef<HTMLInputElement>(null);
+  const lojaCarregada = loja !== null;
+
+  // Sincroniza os campos de texto só quando a loja termina de carregar — se
+  // dependesse do objeto `loja` inteiro, digitar no campo de hex reescreveria
+  // o próprio campo a cada tecla.
+  useEffect(() => {
+    if (loja) {
+      setCorPrimariaTexto(loja.corPrimaria);
+      setCorSecundariaTexto(loja.corSecundaria);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaCarregada]);
 
   useEffect(() => {
     api<Loja>('/api/admin/loja', { autenticado: true })
@@ -50,6 +73,8 @@ export function PainelLoja() {
           horarioAbertura: loja.horarioAbertura || null,
           horarioFechamento: loja.horarioFechamento || null,
           abertoManual: loja.abertoManual,
+          corPrimaria: loja.corPrimaria,
+          corSecundaria: loja.corSecundaria,
         },
       });
       setLoja(atualizada);
@@ -91,6 +116,52 @@ export function PainelLoja() {
       setEnviandoCapa(false);
       evento.target.value = '';
     }
+  }
+
+  function aoMudarCorPrimariaTexto(valor: string) {
+    setCorPrimariaTexto(valor);
+    if (loja && corValida(valor)) {
+      setLoja({ ...loja, corPrimaria: normalizarCor(valor) });
+    }
+  }
+
+  function aoMudarCorPrimariaPicker(valor: string) {
+    if (!loja) return;
+    const normalizado = normalizarCor(valor);
+    setCorPrimariaTexto(normalizado);
+    setLoja({ ...loja, corPrimaria: normalizado });
+  }
+
+  function aoMudarCorSecundariaTexto(valor: string) {
+    setCorSecundariaTexto(valor);
+    if (loja && corValida(valor)) {
+      setLoja({ ...loja, corSecundaria: normalizarCor(valor) });
+    }
+  }
+
+  function aoMudarCorSecundariaPicker(valor: string) {
+    if (!loja) return;
+    const normalizado = normalizarCor(valor);
+    setCorSecundariaTexto(normalizado);
+    setLoja({ ...loja, corSecundaria: normalizado });
+  }
+
+  function aplicarPaleta(paleta: PaletaCores) {
+    if (!loja) return;
+    setLoja({ ...loja, corPrimaria: paleta.primaria, corSecundaria: paleta.secundaria });
+    setCorPrimariaTexto(paleta.primaria);
+    setCorSecundariaTexto(paleta.secundaria);
+  }
+
+  function restaurarPadrao() {
+    if (!loja) return;
+    const confirmado = confirm(
+      'Restaurar as cores padrão do SmartFood? As cores atuais serão substituídas — clique em Salvar depois pra confirmar.',
+    );
+    if (!confirmado) return;
+    setLoja({ ...loja, corPrimaria: COR_PRIMARIA_PADRAO, corSecundaria: COR_SECUNDARIA_PADRAO });
+    setCorPrimariaTexto(COR_PRIMARIA_PADRAO);
+    setCorSecundariaTexto(COR_SECUNDARIA_PADRAO);
   }
 
   if (carregando) return <Loading />;
@@ -225,6 +296,111 @@ export function PainelLoja() {
           <option value="aberto">Forçar aberto</option>
           <option value="fechado">Forçar fechado</option>
         </Select>
+
+        <div className="mt-2 border-t pt-4">
+          <h3 className="text-base font-semibold text-gray-800">Identidade visual</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Personalize as cores do seu cardápio para combinar com a identidade da sua marca.
+          </p>
+
+          <div className="mt-3 flex flex-col gap-4">
+            <div>
+              <label className={LABEL}>Cor primária</label>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  type="color"
+                  value={corValida(corPrimariaTexto) ? corPrimariaTexto : loja.corPrimaria}
+                  onChange={(e) => aoMudarCorPrimariaPicker(e.target.value)}
+                  aria-label="Selecionar cor primária"
+                  className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-300 p-0.5"
+                />
+                <Input
+                  value={corPrimariaTexto}
+                  onChange={(e) => aoMudarCorPrimariaTexto(e.target.value)}
+                  placeholder="#16A34A"
+                  className={!corValida(corPrimariaTexto) ? 'border-red-400' : ''}
+                />
+              </div>
+              {!corValida(corPrimariaTexto) && (
+                <p className="mt-1 text-xs text-red-600">
+                  Use o formato #RRGGBB, por exemplo #16A34A
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Utilizada nos principais botões, destaques e ações.
+              </p>
+            </div>
+
+            <div>
+              <label className={LABEL}>Cor secundária</label>
+              <div className="mt-1 flex items-center gap-2">
+                <input
+                  type="color"
+                  value={corValida(corSecundariaTexto) ? corSecundariaTexto : loja.corSecundaria}
+                  onChange={(e) => aoMudarCorSecundariaPicker(e.target.value)}
+                  aria-label="Selecionar cor secundária"
+                  className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-300 p-0.5"
+                />
+                <Input
+                  value={corSecundariaTexto}
+                  onChange={(e) => aoMudarCorSecundariaTexto(e.target.value)}
+                  placeholder="#15803D"
+                  className={!corValida(corSecundariaTexto) ? 'border-red-400' : ''}
+                />
+              </div>
+              {!corValida(corSecundariaTexto) && (
+                <p className="mt-1 text-xs text-red-600">
+                  Use o formato #RRGGBB, por exemplo #15803D
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Utilizada em detalhes complementares e estados de interação.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-sm font-medium text-gray-700">Paletas prontas</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PALETAS_PRONTAS.map((paleta) => (
+                <button
+                  key={paleta.nome}
+                  type="button"
+                  onClick={() => aplicarPaleta(paleta)}
+                  title={paleta.nome}
+                  className="flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
+                >
+                  <span className="flex h-4 w-4 overflow-hidden rounded-full ring-1 ring-black/10">
+                    <span className="w-1/2" style={{ backgroundColor: paleta.primaria }} />
+                    <span className="w-1/2" style={{ backgroundColor: paleta.secundaria }} />
+                  </span>
+                  {paleta.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-medium text-gray-700">Pré-visualização</p>
+            <div className="max-w-xs">
+              <PreviewIdentidadeVisual
+                nomeLoja={loja.nome}
+                corPrimaria={loja.corPrimaria}
+                corSecundaria={loja.corSecundaria}
+              />
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variante="secondary"
+            tamanho="sm"
+            onClick={restaurarPadrao}
+            className="mt-3"
+          >
+            Restaurar cores padrão
+          </Button>
+        </div>
 
         {mensagem && <Alert tipo="sucesso">{mensagem}</Alert>}
         {erro && <Alert tipo="erro">{erro}</Alert>}

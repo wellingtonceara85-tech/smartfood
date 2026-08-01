@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../env';
 import { prisma } from '../prisma';
+import { COR_PRIMARIA_PADRAO, COR_SECUNDARIA_PADRAO, corOuPadrao } from '../utils/cor';
 import { calcularAberto } from '../utils/horario';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
 
@@ -37,6 +38,8 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     chavePix: loja.chavePix,
     telefoneWhatsapp: loja.telefoneWhatsapp,
     aberto: calcularAberto(loja),
+    corPrimaria: corOuPadrao(loja.corPrimaria, COR_PRIMARIA_PADRAO),
+    corSecundaria: corOuPadrao(loja.corSecundaria, COR_SECUNDARIA_PADRAO),
     bairrosEntrega: loja.bairrosEntrega.map((bairro) => ({
       id: bairro.id,
       nomeBairro: bairro.nomeBairro,

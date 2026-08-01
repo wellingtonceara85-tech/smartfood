@@ -8,11 +8,13 @@ export default {
           DEFAULT: 'var(--color-primary)',
           hover: 'var(--color-primary-hover)',
           light: 'var(--color-primary-light)',
+          text: 'var(--color-primary-contrast-text, #FFFFFF)',
         },
         secondary: {
           DEFAULT: 'var(--color-secondary)',
           hover: 'var(--color-secondary-hover)',
           light: 'var(--color-secondary-light)',
+          text: 'var(--color-secondary-contrast-text, #FFFFFF)',
         },
       },
       borderRadius: {
