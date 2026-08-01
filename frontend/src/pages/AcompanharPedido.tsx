@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { ORDEM_STATUS, rotuloStatus } from '../lib/statusPedido';
 import { PedidoAcompanhamento } from '../types';
@@ -36,6 +36,14 @@ export function AcompanharPedido() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
       <div className="mx-auto max-w-md rounded-xl bg-white p-6 shadow">
+        {slug && (
+          <Link
+            to={`/${slug}`}
+            className="mb-3 inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:underline"
+          >
+            ← Voltar ao cardápio
+          </Link>
+        )}
         <p className="text-sm text-gray-500">{pedido.loja.nome}</p>
         <h1 className="text-xl font-bold text-gray-800">Pedido #{pedido.numero}</h1>
 
