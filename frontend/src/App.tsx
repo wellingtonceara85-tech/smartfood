@@ -8,6 +8,7 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { LojaPublica } from './pages/LojaPublica';
 import { PainelBairros } from './pages/PainelBairros';
+import { PainelDashboard } from './pages/PainelDashboard';
 import { PainelLayout } from './pages/PainelLayout';
 import { PainelLoja } from './pages/PainelLoja';
 import { PainelPedidos } from './pages/PainelPedidos';
@@ -16,7 +17,7 @@ import { PainelProdutos } from './pages/PainelProdutos';
 export function App() {
   const { usuario } = useAuth();
 
-  const destinoPosLogin = usuario?.papel === 'admin_master' ? '/admin/lojas' : '/painel/produtos';
+  const destinoPosLogin = usuario?.papel === 'admin_master' ? '/admin/lojas' : '/painel/dashboard';
 
   return (
     <Routes>
@@ -28,7 +29,8 @@ export function App() {
 
       <Route element={<RotaProtegida />}>
         <Route path="/painel" element={<PainelLayout />}>
-          <Route index element={<Navigate to="produtos" replace />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<PainelDashboard />} />
           <Route path="produtos" element={<PainelProdutos />} />
           <Route path="pedidos" element={<PainelPedidos />} />
           <Route path="entrega" element={<PainelBairros />} />

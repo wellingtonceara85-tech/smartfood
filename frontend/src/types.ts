@@ -140,3 +140,17 @@ export interface PedidoAcompanhamento {
   criadoEm: string;
   loja: { nome: string };
 }
+
+export interface DashboardResumo {
+  periodo: { inicio: string; fim: string };
+  faturamentoTotal: number;
+  totalPedidos: number;
+  ticketMedio: number;
+  produtoMaisVendido: { nome: string; quantidade: number } | null;
+  clienteTop: {
+    nome: string;
+    telefone: string;
+    totalGasto: number;
+    totalPedidos: number;
+  } | null;
+}

@@ -335,3 +335,91 @@ adminRouter.patch('/pedidos/:id/status', async (req, res) => {
   });
   res.json(serializarPedido(pedido));
 });
+
+// --- Dashboard ---
+
+interface ItemPedidoJson {
+  nome: string;
+  quantidade: number;
+}
+
+const dashboardQuerySchema = z.object({
+  inicio: z.string().optional(),
+  fim: z.string().optional(),
+});
+
+adminRouter.get('/dashboard', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = dashboardQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ erro: 'Parâmetros inválidos' });
+
+  const hoje = new Date();
+  const inicioPadrao = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const inicio = parsed.data.inicio ? new Date(`${parsed.data.inicio}T00:00:00`) : inicioPadrao;
+  const fim = parsed.data.fim
+    ? new Date(`${parsed.data.fim}T23:59:59.999`)
+    : new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate(), 23, 59, 59, 999);
+
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+    return res.status(400).json({ erro: 'Datas inválidas' });
+  }
+
+  const pedidos = await prisma.pedido.findMany({
+    where: { lojaId, criadoEm: { gte: inicio, lte: fim } },
+  });
+
+  const faturamentoTotal = pedidos.reduce((soma, p) => soma + Number(p.total), 0);
+  const totalPedidos = pedidos.length;
+  const ticketMedio = totalPedidos > 0 ? faturamentoTotal / totalPedidos : 0;
+
+  const contagemProdutos = new Map<string, number>();
+  for (const pedido of pedidos) {
+    const itens = pedido.itens as unknown as ItemPedidoJson[];
+    for (const item of itens) {
+      contagemProdutos.set(item.nome, (contagemProdutos.get(item.nome) ?? 0) + item.quantidade);
+    }
+  }
+  let produtoMaisVendido: { nome: string; quantidade: number } | null = null;
+  for (const [nome, quantidade] of contagemProdutos) {
+    if (!produtoMaisVendido || quantidade > produtoMaisVendido.quantidade) {
+      produtoMaisVendido = { nome, quantidade };
+    }
+  }
+
+  const clientes = new Map<
+    string,
+    { nome: string; telefone: string; totalGasto: number; totalPedidos: number }
+  >();
+  for (const pedido of pedidos) {
+    const atual = clientes.get(pedido.clienteTelefone) ?? {
+      nome: pedido.clienteNome,
+      telefone: pedido.clienteTelefone,
+      totalGasto: 0,
+      totalPedidos: 0,
+    };
+    atual.totalGasto += Number(pedido.total);
+    atual.totalPedidos += 1;
+    atual.nome = pedido.clienteNome;
+    clientes.set(pedido.clienteTelefone, atual);
+  }
+  let clienteTop: {
+    nome: string;
+    telefone: string;
+    totalGasto: number;
+    totalPedidos: number;
+  } | null = null;
+  for (const cliente of clientes.values()) {
+    if (!clienteTop || cliente.totalGasto > clienteTop.totalGasto) clienteTop = cliente;
+  }
+
+  res.json({
+    periodo: { inicio: inicio.toISOString(), fim: fim.toISOString() },
+    faturamentoTotal,
+    totalPedidos,
+    ticketMedio,
+    produtoMaisVendido,
+    clienteTop,
+  });
+});

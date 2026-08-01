@@ -20,6 +20,9 @@ export function PainelLayout() {
       </header>
 
       <nav className="flex gap-2 border-b bg-white px-4 py-2">
+        <NavLink to="/painel/dashboard" className={linkClasse}>
+          Dashboard
+        </NavLink>
         <NavLink to="/painel/produtos" className={linkClasse}>
           Produtos
         </NavLink>
