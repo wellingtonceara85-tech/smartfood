@@ -261,7 +261,7 @@ export function LojaPublica() {
         )}
 
         {!busca.trim() && (
-          <div className="mb-4 flex gap-5 overflow-x-auto border-b pb-0">
+          <div className="sticky top-0 z-20 -mx-4 mb-4 flex gap-5 overflow-x-auto border-b bg-gray-50 px-4 pb-0 pt-2">
             {loja.categorias.map((categoria) => (
               <button
                 key={categoria.id}
