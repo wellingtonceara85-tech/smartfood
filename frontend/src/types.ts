@@ -79,7 +79,7 @@ export interface LojaAdmin {
   totalPedidos: number;
 }
 
-export type StatusPedido = 'recebido' | 'em_preparo' | 'pronto' | 'entregue';
+export type StatusPedido = 'recebido' | 'em_preparo' | 'pronto' | 'entregue' | 'finalizado';
 export type FormaPagamento = 'dinheiro' | 'cartao' | 'pix';
 
 /** Formato em que os itens ficam gravados dentro de um pedido já criado (Pedido.itens no backend) — diferente de ItemCarrinho. */

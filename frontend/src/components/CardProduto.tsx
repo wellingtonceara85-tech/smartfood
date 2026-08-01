@@ -14,7 +14,7 @@ export function CardProduto({ produto, aoAdicionar }: Props) {
 
   return (
     <div
-      className={`flex justify-between gap-3 rounded-lg border bg-white p-3 ${indisponivel ? 'opacity-50' : ''}`}
+      className={`flex justify-between gap-3 rounded-lg border bg-white p-3 transition-shadow duration-150 hover:shadow-md ${indisponivel ? 'opacity-50' : ''}`}
     >
       <div className="flex flex-1 flex-col">
         <p className="font-medium text-gray-800">{produto.nome}</p>

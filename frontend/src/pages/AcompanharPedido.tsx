@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
-import { ORDEM_STATUS, rotuloStatus } from '../lib/statusPedido';
+import { ORDEM_STATUS_CLIENTE, rotuloStatus } from '../lib/statusPedido';
 import { PedidoAcompanhamento } from '../types';
 
 export function AcompanharPedido() {
@@ -31,7 +31,9 @@ export function AcompanharPedido() {
     return <p className="p-6 text-center text-gray-500">Carregando...</p>;
   }
 
-  const passoAtual = ORDEM_STATUS.indexOf(pedido.status);
+  // Pro cliente, "finalizado" (arquivamento interno do lojista) aparece como entregue/retirado.
+  const statusExibido = pedido.status === 'finalizado' ? 'entregue' : pedido.status;
+  const passoAtual = ORDEM_STATUS_CLIENTE.indexOf(statusExibido);
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
@@ -48,12 +50,12 @@ export function AcompanharPedido() {
         <h1 className="text-xl font-bold text-gray-800">Pedido #{pedido.numero}</h1>
 
         <div className="my-6 flex items-center justify-between">
-          {ORDEM_STATUS.map((status, i) => (
+          {ORDEM_STATUS_CLIENTE.map((status, i) => (
             <div key={status} className="flex flex-1 flex-col items-center">
               <div
                 className={`h-3 w-3 rounded-full ${i <= passoAtual ? 'bg-green-600' : 'bg-gray-200'}`}
               />
-              {i < ORDEM_STATUS.length - 1 && (
+              {i < ORDEM_STATUS_CLIENTE.length - 1 && (
                 <div
                   className={`mt-1.5 h-0.5 w-full ${i < passoAtual ? 'bg-green-600' : 'bg-gray-200'}`}
                 />
@@ -63,7 +65,7 @@ export function AcompanharPedido() {
         </div>
 
         <p className="text-center text-lg font-semibold text-green-700">
-          {rotuloStatus(pedido.status, pedido.formaRecebimento)}
+          {rotuloStatus(statusExibido, pedido.formaRecebimento)}
         </p>
 
         <ul className="mt-6 flex flex-col gap-1 border-t pt-4 text-sm text-gray-600">

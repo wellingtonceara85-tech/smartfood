@@ -20,9 +20,38 @@ function formatarData(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function SeletorStatus({
+  pedido,
+  aoMudar,
+}: {
+  pedido: PedidoAdmin;
+  aoMudar: (status: StatusPedido) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1">
+      {ORDEM_STATUS.map((status) => {
+        const ativo = pedido.status === status;
+        return (
+          <button
+            key={status}
+            type="button"
+            onClick={() => aoMudar(status)}
+            className={`rounded-full px-2 py-1 text-xs font-medium transition-colors ${
+              ativo ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {rotuloStatus(status, pedido.formaRecebimento)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PainelPedidos() {
   const [pedidos, setPedidos] = useState<PedidoAdmin[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [aba, setAba] = useState<'ativos' | 'finalizados'>('ativos');
 
   async function carregar() {
     setCarregando(true);
@@ -49,16 +78,47 @@ export function PainelPedidos() {
 
   if (carregando) return <p className="text-gray-500">Carregando...</p>;
 
+  const pedidosAtivos = pedidos.filter((p) => p.status !== 'finalizado');
+  const pedidosFinalizados = pedidos.filter((p) => p.status === 'finalizado');
+  const pedidosExibidos = aba === 'ativos' ? pedidosAtivos : pedidosFinalizados;
+
   return (
     <div className="flex flex-col gap-3">
       <h2 className="font-semibold text-gray-800">Pedidos</h2>
 
-      {pedidos.length === 0 && (
-        <p className="text-sm text-gray-500">Nenhum pedido recebido ainda.</p>
+      <div className="flex gap-4 border-b">
+        <button
+          type="button"
+          onClick={() => setAba('ativos')}
+          className={`px-1 pb-2 text-sm font-medium ${
+            aba === 'ativos'
+              ? 'border-b-2 border-green-600 text-green-700'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Ativos{pedidosAtivos.length > 0 ? ` (${pedidosAtivos.length})` : ''}
+        </button>
+        <button
+          type="button"
+          onClick={() => setAba('finalizados')}
+          className={`px-1 pb-2 text-sm font-medium ${
+            aba === 'finalizados'
+              ? 'border-b-2 border-green-600 text-green-700'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Finalizados{pedidosFinalizados.length > 0 ? ` (${pedidosFinalizados.length})` : ''}
+        </button>
+      </div>
+
+      {pedidosExibidos.length === 0 && (
+        <p className="text-sm text-gray-500">
+          {aba === 'ativos' ? 'Nenhum pedido ativo no momento.' : 'Nenhum pedido finalizado ainda.'}
+        </p>
       )}
 
       {/* Desktop: tabela */}
-      {pedidos.length > 0 && (
+      {pedidosExibidos.length > 0 && (
         <div className="hidden overflow-x-auto rounded-lg border bg-white md:block">
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
@@ -73,7 +133,7 @@ export function PainelPedidos() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {pedidos.map((pedido) => (
+              {pedidosExibidos.map((pedido) => (
                 <tr key={pedido.id} className="align-top">
                   <td className="px-3 py-3">
                     <p className="font-medium text-gray-800">#{pedido.numero}</p>
@@ -103,17 +163,10 @@ export function PainelPedidos() {
                     R$ {pedido.total.toFixed(2)}
                   </td>
                   <td className="px-3 py-3">
-                    <select
-                      value={pedido.status}
-                      onChange={(e) => mudarStatus(pedido, e.target.value as StatusPedido)}
-                      className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
-                    >
-                      {ORDEM_STATUS.map((status) => (
-                        <option key={status} value={status}>
-                          {rotuloStatus(status, pedido.formaRecebimento)}
-                        </option>
-                      ))}
-                    </select>
+                    <SeletorStatus
+                      pedido={pedido}
+                      aoMudar={(status) => mudarStatus(pedido, status)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -124,7 +177,7 @@ export function PainelPedidos() {
 
       {/* Mobile: cards empilhados */}
       <div className="flex flex-col gap-3 md:hidden">
-        {pedidos.map((pedido) => (
+        {pedidosExibidos.map((pedido) => (
           <div key={pedido.id} className="rounded-lg border bg-white p-3">
             <div className="flex items-start justify-between">
               <div>
@@ -155,19 +208,8 @@ export function PainelPedidos() {
               {detalhePagamento(pedido)}
             </p>
 
-            <div className="mt-3 flex items-center gap-2">
-              <label className="text-sm text-gray-600">Status:</label>
-              <select
-                value={pedido.status}
-                onChange={(e) => mudarStatus(pedido, e.target.value as StatusPedido)}
-                className="rounded-lg border border-gray-300 px-2 py-1 text-sm"
-              >
-                {ORDEM_STATUS.map((status) => (
-                  <option key={status} value={status}>
-                    {rotuloStatus(status, pedido.formaRecebimento)}
-                  </option>
-                ))}
-              </select>
+            <div className="mt-3">
+              <SeletorStatus pedido={pedido} aoMudar={(status) => mudarStatus(pedido, status)} />
             </div>
           </div>
         ))}

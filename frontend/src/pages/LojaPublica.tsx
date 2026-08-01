@@ -43,6 +43,19 @@ export function LojaPublica() {
   }, [slug]);
 
   useEffect(() => {
+    if (!slug) return;
+    const salvo = localStorage.getItem(`smartfood_cliente_${slug}`);
+    if (!salvo) return;
+    try {
+      const { nome: nomeSalvo, telefone: telefoneSalvo } = JSON.parse(salvo);
+      if (nomeSalvo) setNome(nomeSalvo);
+      if (telefoneSalvo) setTelefone(telefoneSalvo);
+    } catch {
+      // dado corrompido no localStorage — ignora e segue com os campos vazios
+    }
+  }, [slug]);
+
+  useEffect(() => {
     if (!slug || telefone.length < 8) {
       setPedidoAnterior(null);
       return;
@@ -172,6 +185,10 @@ export function LojaPublica() {
         // Aba bloqueada mesmo assim (ex: usuário desativou pop-ups) — navega a própria página.
         window.location.href = resposta.linkWhatsapp;
       }
+      localStorage.setItem(
+        `smartfood_cliente_${slug}`,
+        JSON.stringify({ nome: nome.trim(), telefone }),
+      );
       setCarrinho({});
       setResumoAberto(false);
     } catch (e) {
@@ -203,7 +220,7 @@ export function LojaPublica() {
         )}
 
         <span
-          className={`absolute right-4 top-4 rounded-full px-3 py-1 text-xs font-semibold text-white shadow ${
+          className={`absolute right-4 top-4 rounded-full px-4 py-1.5 text-sm font-bold text-white shadow ${
             loja.aberto ? 'bg-green-600' : 'bg-red-500'
           }`}
         >
@@ -312,9 +329,12 @@ export function LojaPublica() {
         />
       )}
 
-      <footer className="mx-auto max-w-2xl px-4 py-6 text-center text-xs text-gray-400">
-        <p className="font-medium text-gray-600">{loja.nome}</p>
-        {loja.endereco && <p>{loja.endereco}</p>}
+      <footer className="mt-6 bg-gray-800 px-4 py-6 text-center text-xs text-gray-300">
+        <p className="text-sm font-semibold text-white">{loja.nome}</p>
+        {loja.endereco && <p className="mt-1">{loja.endereco}</p>}
+        <p className="mt-2 text-gray-400">
+          Tecnologia: <span className="font-medium text-gray-300">SmartFood</span>
+        </p>
       </footer>
     </div>
   );

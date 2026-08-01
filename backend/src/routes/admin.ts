@@ -21,7 +21,7 @@ function serializarPedido(pedido: Pedido) {
   };
 }
 
-const STATUS_PEDIDO = ['recebido', 'em_preparo', 'pronto', 'entregue'] as const;
+const STATUS_PEDIDO = ['recebido', 'em_preparo', 'pronto', 'entregue', 'finalizado'] as const;
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
