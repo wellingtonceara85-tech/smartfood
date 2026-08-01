@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BarraResumoCompacta } from '../components/BarraResumoCompacta';
 import { CardProduto } from '../components/CardProduto';
@@ -31,6 +31,7 @@ export function LojaPublica() {
   const [formaRecebimento, setFormaRecebimento] = useState<'entrega' | 'retirada'>('retirada');
   const [bairroSelecionadoId, setBairroSelecionadoId] = useState<string | null>(null);
   const [resumoAberto, setResumoAberto] = useState(false);
+  const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (!slug) return;
@@ -70,19 +71,48 @@ export function LojaPublica() {
     return () => clearTimeout(timer);
   }, [slug, telefone]);
 
-  const produtosVisiveis = useMemo(() => {
-    if (!loja) return [];
+  const produtosBusca = useMemo(() => {
+    if (!loja || !busca.trim()) return [];
+    const termo = busca.trim().toLowerCase();
     const todos = loja.categorias.flatMap((categoria) => categoria.produtos);
-    if (busca.trim()) {
-      const termo = busca.trim().toLowerCase();
-      return todos.filter(
-        (produto) =>
-          produto.nome.toLowerCase().includes(termo) ||
-          produto.descricao?.toLowerCase().includes(termo),
-      );
-    }
-    return loja.categorias.find((categoria) => categoria.id === categoriaAtiva)?.produtos ?? [];
-  }, [loja, busca, categoriaAtiva]);
+    return todos.filter(
+      (produto) =>
+        produto.nome.toLowerCase().includes(termo) ||
+        produto.descricao?.toLowerCase().includes(termo),
+    );
+  }, [loja, busca]);
+
+  // Scroll-spy: enquanto o cliente rola a lista única de categorias, destaca na
+  // barra fixa qual seção está visível — sem isso a aba ativa ficaria travada
+  // na categoria clicada por último, mesmo já tendo rolado pra outra.
+  useEffect(() => {
+    if (!loja || busca.trim()) return;
+    const elementos = Object.entries(categoriaRefs.current).filter(([, el]) => el !== null) as [
+      string,
+      HTMLDivElement,
+    ][];
+    if (elementos.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visiveis = entries.filter((entry) => entry.isIntersecting);
+        if (visiveis.length === 0) return;
+        const maisProximoDoTopo = visiveis.reduce((a, b) =>
+          a.boundingClientRect.top < b.boundingClientRect.top ? a : b,
+        );
+        const id = maisProximoDoTopo.target.getAttribute('data-categoria-id');
+        if (id) setCategoriaAtiva(id);
+      },
+      { rootMargin: '-120px 0px -70% 0px', threshold: 0 },
+    );
+    elementos.forEach(([, el]) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [loja, busca]);
+
+  function irParaCategoria(categoriaId: string) {
+    setCategoriaAtiva(categoriaId);
+    categoriaRefs.current[categoriaId]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   function adicionarAoCarrinho(produto: Produto, opcao: string | null, quantidade: number) {
     const chave = `${produto.id}-${opcao ?? ''}`;
@@ -266,7 +296,7 @@ export function LojaPublica() {
               <button
                 key={categoria.id}
                 type="button"
-                onClick={() => setCategoriaAtiva(categoria.id)}
+                onClick={() => irParaCategoria(categoria.id)}
                 className={`shrink-0 border-b-2 px-1 pb-2 text-sm font-medium ${
                   categoriaAtiva === categoria.id
                     ? 'border-green-600 text-green-700'
@@ -279,14 +309,43 @@ export function LojaPublica() {
           </div>
         )}
 
-        <div className="flex flex-col gap-3">
-          {produtosVisiveis.map((produto) => (
-            <CardProduto key={produto.id} produto={produto} aoAdicionar={adicionarAoCarrinho} />
-          ))}
-          {produtosVisiveis.length === 0 && (
-            <p className="text-sm text-gray-500">Nenhum produto encontrado.</p>
-          )}
-        </div>
+        {busca.trim() ? (
+          <div className="flex flex-col gap-3">
+            {produtosBusca.map((produto) => (
+              <CardProduto key={produto.id} produto={produto} aoAdicionar={adicionarAoCarrinho} />
+            ))}
+            {produtosBusca.length === 0 && (
+              <p className="text-sm text-gray-500">Nenhum produto encontrado.</p>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {loja.categorias.map((categoria) => (
+              <div
+                key={categoria.id}
+                ref={(el) => {
+                  categoriaRefs.current[categoria.id] = el;
+                }}
+                data-categoria-id={categoria.id}
+                className="scroll-mt-16"
+              >
+                <h2 className="mb-2 text-base font-semibold text-gray-800">{categoria.nome}</h2>
+                <div className="flex flex-col gap-3">
+                  {categoria.produtos.map((produto) => (
+                    <CardProduto
+                      key={produto.id}
+                      produto={produto}
+                      aoAdicionar={adicionarAoCarrinho}
+                    />
+                  ))}
+                  {categoria.produtos.length === 0 && (
+                    <p className="text-sm text-gray-500">Nenhum produto nessa categoria.</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {erroPedido && <p className="mt-3 text-sm text-red-600">{erroPedido}</p>}
       </div>
