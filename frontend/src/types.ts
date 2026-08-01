@@ -96,7 +96,17 @@ export interface ItemPedidoRegistrado {
   subtotal: number;
 }
 
-export interface PedidoAnterior {
+export interface EnderecoEntregaPedido {
+  entregaCep: string | null;
+  entregaLogradouro: string | null;
+  entregaNumero: string | null;
+  entregaComplemento: string | null;
+  entregaCidade: string | null;
+  entregaEstado: string | null;
+  entregaReferencia: string | null;
+}
+
+export interface PedidoAnterior extends EnderecoEntregaPedido {
   id: string;
   numero: number;
   clienteNome: string;
@@ -115,7 +125,7 @@ export interface PedidoAnterior {
   criadoEm: string;
 }
 
-export interface PedidoAdmin {
+export interface PedidoAdmin extends EnderecoEntregaPedido {
   id: string;
   numero: number;
   clienteNome: string;

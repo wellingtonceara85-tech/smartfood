@@ -5,10 +5,21 @@ interface ItemMensagem {
   subtotal: number;
 }
 
+interface EnderecoMensagem {
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string | null;
+  cidade: string;
+  estado: string;
+  referencia: string | null;
+}
+
 interface RecebimentoMensagem {
   forma: 'entrega' | 'retirada';
   bairroNome?: string | null;
   valorEntrega?: number;
+  endereco?: EnderecoMensagem | null;
 }
 
 interface PedidoMensagem {
@@ -59,6 +70,18 @@ export function montarMensagemPedido(
       ? `Forma de recebimento: Entrega - ${recebimento.bairroNome} (${moeda(recebimento.valorEntrega ?? 0)})`
       : 'Forma de recebimento: Retirada no local';
 
+  linhas.push('', linhaRecebimento);
+
+  if (recebimento.forma === 'entrega' && recebimento.endereco) {
+    const end = recebimento.endereco;
+    const complemento = end.complemento ? ` - ${end.complemento}` : '';
+    linhas.push(`Endereço: ${end.logradouro}, ${end.numero}${complemento}`);
+    linhas.push(`${end.cidade}/${end.estado} - CEP: ${end.cep.slice(0, 5)}-${end.cep.slice(5)}`);
+    if (end.referencia) {
+      linhas.push(`Referência: ${end.referencia}`);
+    }
+  }
+
   let detalhePagamento = LABEL_PAGAMENTO[pedido.formaPagamento] ?? pedido.formaPagamento;
   if (pedido.formaPagamento === 'dinheiro') {
     detalhePagamento = pedido.precisaTroco
@@ -69,7 +92,7 @@ export function montarMensagemPedido(
   }
   const linhaPagamento = `Pagamento em: ${detalhePagamento}`;
 
-  linhas.push('', linhaRecebimento, linhaPagamento);
+  linhas.push('', linhaPagamento);
 
   if (pedido.formaPagamento === 'pix' && pedido.chavePix) {
     linhas.push(`Chave Pix da loja: ${pedido.chavePix}`);

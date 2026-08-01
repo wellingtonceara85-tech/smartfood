@@ -3,8 +3,35 @@ import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Loading } from '../components/ui/Loading';
 import { api } from '../lib/api';
+import {
+  EnderecoEntrega,
+  formatarEnderecoCompleto,
+  formatarEnderecoResumo,
+  maskCep,
+} from '../lib/endereco';
 import { ORDEM_STATUS, rotuloStatus } from '../lib/statusPedido';
 import { PedidoAdmin, StatusPedido } from '../types';
+
+function enderecoDoPedido(pedido: PedidoAdmin): EnderecoEntrega | null {
+  if (
+    !pedido.entregaCep ||
+    !pedido.entregaLogradouro ||
+    !pedido.entregaNumero ||
+    !pedido.entregaCidade ||
+    !pedido.entregaEstado
+  ) {
+    return null;
+  }
+  return {
+    cep: pedido.entregaCep,
+    logradouro: pedido.entregaLogradouro,
+    numero: pedido.entregaNumero,
+    complemento: pedido.entregaComplemento,
+    cidade: pedido.entregaCidade,
+    estado: pedido.entregaEstado,
+    referencia: pedido.entregaReferencia,
+  };
+}
 
 function detalhePagamento(pedido: PedidoAdmin): string {
   if (pedido.formaPagamento === 'dinheiro') {
@@ -56,6 +83,65 @@ function SeletorStatus({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function EnderecoPedido({ pedido }: { pedido: PedidoAdmin }) {
+  const [expandido, setExpandido] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+  const endereco = enderecoDoPedido(pedido);
+
+  if (!endereco) {
+    return <p className="text-xs text-gray-400">Endereço não informado</p>;
+  }
+
+  async function copiarEndereco() {
+    if (!endereco) return;
+    try {
+      await navigator.clipboard.writeText(
+        formatarEnderecoCompleto(endereco, pedido.bairroEntregaNome).join('\n'),
+      );
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      // clipboard indisponível — sem feedback, lojista copia manualmente
+    }
+  }
+
+  return (
+    <div className="text-xs text-gray-600">
+      <p>{formatarEnderecoResumo(endereco, pedido.bairroEntregaNome)}</p>
+      <div className="mt-1 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setExpandido((v) => !v)}
+          className="font-medium text-primary-hover hover:underline"
+        >
+          {expandido ? 'Ocultar endereço' : 'Ver endereço completo'}
+        </button>
+        <button
+          type="button"
+          onClick={copiarEndereco}
+          className="font-medium text-primary-hover hover:underline"
+        >
+          {copiado ? 'Copiado!' : 'Copiar endereço'}
+        </button>
+      </div>
+      {expandido && (
+        <ul className="mt-1 list-inside list-disc text-gray-500">
+          <li>CEP: {maskCep(endereco.cep)}</li>
+          <li>
+            {endereco.logradouro}, {endereco.numero}
+            {endereco.complemento ? ` - ${endereco.complemento}` : ''}
+          </li>
+          <li>
+            {pedido.bairroEntregaNome ? `${pedido.bairroEntregaNome} - ` : ''}
+            {endereco.cidade}/{endereco.estado}
+          </li>
+          {endereco.referencia && <li>Referência: {endereco.referencia}</li>}
+        </ul>
+      )}
     </div>
   );
 }
@@ -172,9 +258,18 @@ export function PainelPedidos() {
                     </ul>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {pedido.formaRecebimento === 'entrega'
-                      ? `Entrega - ${pedido.bairroEntregaNome} (R$ ${pedido.valorEntrega.toFixed(2)})`
-                      : 'Retirada no local'}
+                    {pedido.formaRecebimento === 'entrega' ? (
+                      <div>
+                        <p>
+                          Entrega - {pedido.bairroEntregaNome} (R$ {pedido.valorEntrega.toFixed(2)})
+                        </p>
+                        <div className="mt-1">
+                          <EnderecoPedido pedido={pedido} />
+                        </div>
+                      </div>
+                    ) : (
+                      'Retirada no local'
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{detalhePagamento(pedido)}</td>
                   <td className="px-4 py-3 text-right font-semibold text-gray-800">
@@ -225,6 +320,12 @@ export function PainelPedidos() {
               {' · '}
               {detalhePagamento(pedido)}
             </p>
+
+            {pedido.formaRecebimento === 'entrega' && (
+              <div className="mt-2">
+                <EnderecoPedido pedido={pedido} />
+              </div>
+            )}
 
             <div className="mt-3">
               <SeletorStatus pedido={pedido} aoMudar={(status) => mudarStatus(pedido, status)} />

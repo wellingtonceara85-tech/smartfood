@@ -5,6 +5,7 @@ import { CardProduto } from '../components/CardProduto';
 import { ResumoPedido } from '../components/ResumoPedido';
 import { api } from '../lib/api';
 import { montarVariaveisTema } from '../lib/cor';
+import { cepValido, EnderecoEntrega, maskCep, telefoneValido } from '../lib/endereco';
 import {
   FormaPagamento,
   ItemCarrinho,
@@ -12,6 +13,16 @@ import {
   PedidoAnterior,
   Produto,
 } from '../types';
+
+const ENDERECO_VAZIO: EnderecoEntrega = {
+  cep: '',
+  logradouro: '',
+  numero: '',
+  complemento: null,
+  cidade: '',
+  estado: '',
+  referencia: null,
+};
 
 export function LojaPublica() {
   const { slug } = useParams<{ slug: string }>();
@@ -32,6 +43,9 @@ export function LojaPublica() {
   const [formaRecebimento, setFormaRecebimento] = useState<'entrega' | 'retirada'>('retirada');
   const [bairroSelecionadoId, setBairroSelecionadoId] = useState<string | null>(null);
   const [resumoAberto, setResumoAberto] = useState(false);
+  const [endereco, setEndereco] = useState<EnderecoEntrega>(ENDERECO_VAZIO);
+  const [modoEndereco, setModoEndereco] = useState<'resumo' | 'formulario'>('formulario');
+  const [tentouEnviar, setTentouEnviar] = useState(false);
   const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -86,6 +100,45 @@ export function LojaPublica() {
     }, 500);
     return () => clearTimeout(timer);
   }, [slug, telefone]);
+
+  // Endereço reutilizável: o último pedido de ENTREGA feito por esse telefone
+  // nesta loja, se tiver endereço completo salvo. Escopado por loja+telefone
+  // (mesma consulta isolada por tenant que já existe pro "Pedir de novo").
+  const enderecoSalvo: EnderecoEntrega | null = useMemo(() => {
+    if (!pedidoAnterior) return null;
+    const {
+      entregaCep,
+      entregaLogradouro,
+      entregaNumero,
+      entregaComplemento,
+      entregaCidade,
+      entregaEstado,
+      entregaReferencia,
+    } = pedidoAnterior;
+    if (!entregaCep || !entregaLogradouro || !entregaNumero || !entregaCidade || !entregaEstado) {
+      return null;
+    }
+    return {
+      cep: maskCep(entregaCep),
+      logradouro: entregaLogradouro,
+      numero: entregaNumero,
+      complemento: entregaComplemento,
+      cidade: entregaCidade,
+      estado: entregaEstado,
+      referencia: entregaReferencia,
+    };
+  }, [pedidoAnterior]);
+
+  // Só aplica o endereço salvo automaticamente na primeira vez que ele aparece
+  // — se dependesse do objeto inteiro, cada nova consulta (a cada tecla no
+  // telefone) sobrescreveria o que o cliente já estiver digitando/editando.
+  useEffect(() => {
+    if (enderecoSalvo) {
+      setEndereco(enderecoSalvo);
+      setModoEndereco('resumo');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enderecoSalvo !== null]);
 
   const produtosBusca = useMemo(() => {
     if (!loja || !busca.trim()) return [];
@@ -181,6 +234,10 @@ export function LojaPublica() {
       setFormaRecebimento('retirada');
       setBairroSelecionadoId(null);
     }
+    if (enderecoSalvo) {
+      setEndereco(enderecoSalvo);
+      setModoEndereco('resumo');
+    }
     setResumoAberto(true);
   }
 
@@ -189,10 +246,18 @@ export function LojaPublica() {
   const bairroSelecionado = loja?.bairrosEntrega.find((b) => b.id === bairroSelecionadoId) ?? null;
   const taxaEntrega = formaRecebimento === 'entrega' ? (bairroSelecionado?.valorEntrega ?? 0) : 0;
   const total = subtotal + taxaEntrega;
+  const enderecoValido =
+    cepValido(endereco.cep) &&
+    endereco.logradouro.trim() !== '' &&
+    endereco.numero.trim() !== '' &&
+    endereco.cidade.trim() !== '' &&
+    endereco.estado.trim() !== '';
 
   async function finalizarPedido() {
-    if (!slug || itensCarrinho.length === 0 || !telefone || !nome.trim()) return;
+    setTentouEnviar(true);
+    if (!slug || itensCarrinho.length === 0 || !nome.trim() || !telefoneValido(telefone)) return;
     if (formaRecebimento === 'entrega' && !bairroSelecionadoId) return;
+    if (formaRecebimento === 'entrega' && !enderecoValido) return;
     if (formaPagamento === 'cartao' && !tipoCartao) return;
     if (formaPagamento === 'dinheiro' && precisaTroco && !trocoPara.trim()) return;
     setFinalizando(true);
@@ -216,6 +281,7 @@ export function LojaPublica() {
           })),
           formaRecebimento,
           bairroEntregaId: formaRecebimento === 'entrega' ? bairroSelecionadoId : null,
+          enderecoEntrega: formaRecebimento === 'entrega' ? endereco : null,
           formaPagamento,
           precisaTroco: formaPagamento === 'dinheiro' ? precisaTroco : null,
           trocoPara:
@@ -237,6 +303,7 @@ export function LojaPublica() {
       );
       setCarrinho({});
       setResumoAberto(false);
+      setTentouEnviar(false);
     } catch (e) {
       abaWhatsapp?.close();
       setErroPedido(e instanceof Error ? e.message : 'Não foi possível finalizar o pedido');
@@ -404,6 +471,16 @@ export function LojaPublica() {
           aoMudarTrocoPara={setTrocoPara}
           tipoCartao={tipoCartao}
           aoMudarTipoCartao={setTipoCartao}
+          endereco={endereco}
+          aoMudarEndereco={(campo, valor) => setEndereco((atual) => ({ ...atual, [campo]: valor }))}
+          enderecoSalvo={enderecoSalvo}
+          modoEndereco={modoEndereco}
+          aoMudarModoEndereco={(modo) => {
+            if (modo === 'formulario' && enderecoSalvo) setEndereco(enderecoSalvo);
+            setModoEndereco(modo);
+          }}
+          enderecoLoja={loja.endereco}
+          tentouEnviar={tentouEnviar}
         />
       )}
 

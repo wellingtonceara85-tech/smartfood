@@ -3,6 +3,11 @@ import { z } from 'zod';
 import { env } from '../env';
 import { prisma } from '../prisma';
 import { COR_PRIMARIA_PADRAO, COR_SECUNDARIA_PADRAO, corOuPadrao } from '../utils/cor';
+import {
+  EnderecoEntregaNormalizado,
+  normalizarTelefone,
+  validarEnderecoEntrega,
+} from '../utils/endereco';
 import { calcularAberto } from '../utils/horario';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
 
@@ -63,7 +68,7 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
 });
 
 publicRouter.get('/lojas/:slug/pedidos/ultimo', async (req, res) => {
-  const telefone = String(req.query.telefone ?? '');
+  const telefone = normalizarTelefone(String(req.query.telefone ?? ''));
   if (!telefone) {
     return res.status(400).json({ erro: 'Informe o telefone' });
   }
@@ -113,12 +118,30 @@ const itemPedidoSchema = z.object({
   quantidade: z.number().int().min(1),
 });
 
+const enderecoEntregaSchema = z.object({
+  cep: z.string(),
+  logradouro: z.string(),
+  numero: z.string(),
+  complemento: z.string().nullable().optional(),
+  cidade: z.string(),
+  estado: z.string(),
+  referencia: z.string().nullable().optional(),
+});
+
 const criarPedidoSchema = z.object({
   clienteNome: z.string().min(1),
-  clienteTelefone: z.string().min(8),
+  clienteTelefone: z.string().transform((valor, ctx) => {
+    const normalizado = normalizarTelefone(valor);
+    if (!normalizado) {
+      ctx.addIssue({ code: 'custom', message: 'Telefone inválido — informe DDD + número' });
+      return z.NEVER;
+    }
+    return normalizado;
+  }),
   itens: z.array(itemPedidoSchema).min(1),
   formaRecebimento: z.enum(['entrega', 'retirada']),
   bairroEntregaId: z.string().uuid().nullable().optional(),
+  enderecoEntrega: enderecoEntregaSchema.nullable().optional(),
   formaPagamento: z.enum(['dinheiro', 'cartao', 'pix']),
   precisaTroco: z.boolean().nullable().optional(),
   trocoPara: z.number().positive().nullable().optional(),
@@ -176,6 +199,7 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
 
   let valorEntrega = 0;
   let bairroEntregaNome: string | null = null;
+  let enderecoValidado: EnderecoEntregaNormalizado | null = null;
 
   if (parsed.data.formaRecebimento === 'entrega') {
     if (!parsed.data.bairroEntregaId) {
@@ -189,6 +213,15 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
     }
     valorEntrega = Number(bairro.valorEntrega);
     bairroEntregaNome = bairro.nomeBairro;
+
+    // Nunca confiar só na validação do frontend — endereço é revalidado aqui
+    // mesmo que os campos existam no payload, incluindo casos de campo
+    // desabilitado/oculto manipulado no cliente.
+    const resultadoEndereco = validarEnderecoEntrega(parsed.data.enderecoEntrega);
+    if (!resultadoEndereco.valido) {
+      return res.status(400).json({ erro: resultadoEndereco.erro });
+    }
+    enderecoValidado = resultadoEndereco.endereco;
   }
 
   const total = subtotalItens + valorEntrega;
@@ -226,6 +259,13 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
           ? parsed.data.trocoPara
           : null,
       tipoCartao: parsed.data.formaPagamento === 'cartao' ? parsed.data.tipoCartao : null,
+      entregaCep: enderecoValidado?.cep ?? null,
+      entregaLogradouro: enderecoValidado?.logradouro ?? null,
+      entregaNumero: enderecoValidado?.numero ?? null,
+      entregaComplemento: enderecoValidado?.complemento ?? null,
+      entregaCidade: enderecoValidado?.cidade ?? null,
+      entregaEstado: enderecoValidado?.estado ?? null,
+      entregaReferencia: enderecoValidado?.referencia ?? null,
       total,
     },
   });
@@ -239,6 +279,7 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       forma: parsed.data.formaRecebimento,
       bairroNome: bairroEntregaNome,
       valorEntrega,
+      endereco: enderecoValidado,
     },
     {
       numero,

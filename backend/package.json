@@ -16,7 +16,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "tsx --test src/utils/cor.test.ts"
+    "test": "tsx --test src/utils/cor.test.ts src/utils/endereco.test.ts src/utils/mensagemWhatsapp.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
