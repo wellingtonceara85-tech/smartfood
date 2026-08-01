@@ -100,6 +100,7 @@ model Pedido {
   entregaLogradouro  String?  @map("entrega_logradouro")
   entregaNumero      String?  @map("entrega_numero")
   entregaComplemento String?  @map("entrega_complemento")
+  entregaBairro      String?  @map("entrega_bairro")
   entregaCidade      String?  @map("entrega_cidade")
   entregaEstado      String?  @map("entrega_estado")
   entregaReferencia  String?  @map("entrega_referencia")

@@ -10,6 +10,7 @@ interface EnderecoMensagem {
   logradouro: string;
   numero: string;
   complemento: string | null;
+  bairro: string;
   cidade: string;
   estado: string;
   referencia: string | null;
@@ -75,7 +76,7 @@ export function montarMensagemPedido(
   if (recebimento.forma === 'entrega' && recebimento.endereco) {
     const end = recebimento.endereco;
     const complemento = end.complemento ? ` - ${end.complemento}` : '';
-    linhas.push(`Endereço: ${end.logradouro}, ${end.numero}${complemento}`);
+    linhas.push(`Endereço: ${end.logradouro}, ${end.numero}${complemento} — ${end.bairro}`);
     linhas.push(`${end.cidade}/${end.estado} - CEP: ${end.cep.slice(0, 5)}-${end.cep.slice(5)}`);
     if (end.referencia) {
       linhas.push(`Referência: ${end.referencia}`);

@@ -30,6 +30,7 @@ test('mensagem de Entrega inclui o bloco de endereço', () => {
         logradouro: 'Rua Exemplo',
         numero: '123',
         complemento: 'Apto 201',
+        bairro: 'Aldeota',
         cidade: 'Fortaleza',
         estado: 'CE',
         referencia: 'Próximo à praça',
@@ -38,7 +39,7 @@ test('mensagem de Entrega inclui o bloco de endereço', () => {
     pedidoBase,
   );
 
-  assert.match(mensagem, /Endereço: Rua Exemplo, 123 - Apto 201/);
+  assert.match(mensagem, /Endereço: Rua Exemplo, 123 - Apto 201 — Aldeota/);
   assert.match(mensagem, /Fortaleza\/CE - CEP: 60000-000/);
   assert.match(mensagem, /Referência: Próximo à praça/);
   assert.match(mensagem, /Entrega - Centro/);
@@ -58,6 +59,7 @@ test('mensagem de Entrega sem complemento/referência omite essas linhas', () =>
         logradouro: 'Rua Exemplo',
         numero: '123',
         complemento: null,
+        bairro: 'Aldeota',
         cidade: 'Fortaleza',
         estado: 'CE',
         referencia: null,
@@ -66,7 +68,7 @@ test('mensagem de Entrega sem complemento/referência omite essas linhas', () =>
     pedidoBase,
   );
 
-  assert.match(mensagem, /Endereço: Rua Exemplo, 123$/m);
+  assert.match(mensagem, /Endereço: Rua Exemplo, 123 — Aldeota$/m);
   assert.doesNotMatch(mensagem, /Referência/);
 });
 

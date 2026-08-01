@@ -40,6 +40,7 @@ test('validarEnderecoEntrega aceita endereço completo e normaliza os campos', (
     logradouro: 'Rua Exemplo',
     numero: '123',
     complemento: 'Apto 201',
+    bairro: 'Centro',
     cidade: 'Fortaleza',
     estado: 'ce',
     referencia: 'Próximo à praça',
@@ -51,6 +52,7 @@ test('validarEnderecoEntrega aceita endereço completo e normaliza os campos', (
       logradouro: 'Rua Exemplo',
       numero: '123',
       complemento: 'Apto 201',
+      bairro: 'Centro',
       cidade: 'Fortaleza',
       estado: 'CE',
       referencia: 'Próximo à praça',
@@ -63,6 +65,7 @@ test('validarEnderecoEntrega aceita complemento/referência vazios como null', (
     cep: '60000000',
     logradouro: 'Rua Exemplo',
     numero: '123',
+    bairro: 'Centro',
     cidade: 'Fortaleza',
     estado: 'CE',
   });
@@ -77,6 +80,7 @@ test('validarEnderecoEntrega rejeita quando falta CEP', () => {
   const resultado = validarEnderecoEntrega({
     logradouro: 'Rua Exemplo',
     numero: '123',
+    bairro: 'Centro',
     cidade: 'Fortaleza',
     estado: 'CE',
   });
@@ -87,6 +91,7 @@ test('validarEnderecoEntrega rejeita quando falta rua', () => {
   const resultado = validarEnderecoEntrega({
     cep: '60000000',
     numero: '123',
+    bairro: 'Centro',
     cidade: 'Fortaleza',
     estado: 'CE',
   });
@@ -97,6 +102,18 @@ test('validarEnderecoEntrega rejeita quando falta número', () => {
   const resultado = validarEnderecoEntrega({
     cep: '60000000',
     logradouro: 'Rua Exemplo',
+    bairro: 'Centro',
+    cidade: 'Fortaleza',
+    estado: 'CE',
+  });
+  assert.equal(resultado.valido, false);
+});
+
+test('validarEnderecoEntrega rejeita quando falta bairro', () => {
+  const resultado = validarEnderecoEntrega({
+    cep: '60000000',
+    logradouro: 'Rua Exemplo',
+    numero: '123',
     cidade: 'Fortaleza',
     estado: 'CE',
   });
@@ -108,6 +125,7 @@ test('validarEnderecoEntrega rejeita quando falta cidade', () => {
     cep: '60000000',
     logradouro: 'Rua Exemplo',
     numero: '123',
+    bairro: 'Centro',
     estado: 'CE',
   });
   assert.equal(resultado.valido, false);
@@ -118,6 +136,7 @@ test('validarEnderecoEntrega rejeita quando falta estado', () => {
     cep: '60000000',
     logradouro: 'Rua Exemplo',
     numero: '123',
+    bairro: 'Centro',
     cidade: 'Fortaleza',
   });
   assert.equal(resultado.valido, false);

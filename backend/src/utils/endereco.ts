@@ -68,6 +68,7 @@ export interface EnderecoEntregaInput {
   logradouro: string;
   numero: string;
   complemento?: string | null;
+  bairro: string;
   cidade: string;
   estado: string;
   referencia?: string | null;
@@ -78,6 +79,7 @@ export interface EnderecoEntregaNormalizado {
   logradouro: string;
   numero: string;
   complemento: string | null;
+  bairro: string;
   cidade: string;
   estado: string;
   referencia: string | null;
@@ -104,6 +106,9 @@ export function validarEnderecoEntrega(
   const numero = (input.numero ?? '').trim();
   if (!numero) return { valido: false, erro: 'Informe o número' };
 
+  const bairro = (input.bairro ?? '').trim();
+  if (!bairro) return { valido: false, erro: 'Informe o bairro' };
+
   const cidade = (input.cidade ?? '').trim();
   if (!cidade) return { valido: false, erro: 'Informe a cidade' };
 
@@ -120,6 +125,7 @@ export function validarEnderecoEntrega(
       logradouro,
       numero,
       complemento: complemento || null,
+      bairro,
       cidade,
       estado,
       referencia: referencia || null,

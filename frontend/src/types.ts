@@ -101,28 +101,25 @@ export interface EnderecoEntregaPedido {
   entregaLogradouro: string | null;
   entregaNumero: string | null;
   entregaComplemento: string | null;
+  entregaBairro: string | null;
   entregaCidade: string | null;
   entregaEstado: string | null;
   entregaReferencia: string | null;
 }
 
-export interface PedidoAnterior extends EnderecoEntregaPedido {
-  id: string;
-  numero: number;
-  clienteNome: string;
-  clienteTelefone: string;
+/**
+ * Formato mínimo devolvido por GET /pedidos/ultimo — endpoint público sem
+ * autenticação do cliente, então nunca inclui nome/telefone/endereço (ver
+ * backend/src/utils/pedidoPublico.ts). Usado só pra "Pedir de novo".
+ */
+export interface PedidoAnterior {
   itens: ItemPedidoRegistrado[];
   formaRecebimento: 'entrega' | 'retirada';
   bairroEntregaId: string | null;
-  bairroEntregaNome: string | null;
-  valorEntrega: number;
   formaPagamento: FormaPagamento;
   precisaTroco: boolean | null;
   trocoPara: number | null;
   tipoCartao: 'debito' | 'credito' | null;
-  status: StatusPedido;
-  total: number;
-  criadoEm: string;
 }
 
 export interface PedidoAdmin extends EnderecoEntregaPedido {

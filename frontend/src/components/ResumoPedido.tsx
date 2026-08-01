@@ -46,6 +46,7 @@ interface Props {
   aoMudarModoEndereco: (modo: 'resumo' | 'formulario') => void;
   enderecoLoja: string | null;
   tentouEnviar: boolean;
+  aoRemoverDadosSalvos: () => void;
 }
 
 const OPCOES_PAGAMENTO_BASE: { valor: FormaPagamento; rotulo: string; icone: string }[] = [
@@ -91,6 +92,7 @@ export function ResumoPedido({
   aoMudarModoEndereco,
   enderecoLoja,
   tentouEnviar,
+  aoRemoverDadosSalvos,
 }: Props) {
   const [chavePixCopiada, setChavePixCopiada] = useState(false);
 
@@ -120,8 +122,6 @@ export function ResumoPedido({
     ...OPCOES_PAGAMENTO_BASE,
     ...(chavePix ? [{ valor: 'pix' as const, rotulo: 'Pix', icone: '📱' }] : []),
   ];
-
-  const bairroAtivoNome = bairros.find((b) => b.id === bairroSelecionadoId)?.nomeBairro ?? null;
 
   return (
     <>
@@ -255,9 +255,9 @@ export function ResumoPedido({
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                   <p className="text-xs font-medium text-gray-500">Entregar em</p>
                   <p className="mt-0.5 text-sm text-gray-800">
-                    {formatarEnderecoResumo(enderecoSalvo, bairroAtivoNome)}
+                    {formatarEnderecoResumo(enderecoSalvo)}
                   </p>
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <Button
                       type="button"
                       tamanho="sm"
@@ -273,6 +273,13 @@ export function ResumoPedido({
                     >
                       Alterar endereço
                     </Button>
+                    <button
+                      type="button"
+                      onClick={aoRemoverDadosSalvos}
+                      className="ml-auto text-xs text-gray-400 underline hover:text-gray-600"
+                    >
+                      Remover dados salvos
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -326,6 +333,20 @@ export function ResumoPedido({
                       onChange={(e) => aoMudarEndereco('complemento', e.target.value)}
                       placeholder="Complemento (opcional)"
                     />
+                  </div>
+
+                  <div>
+                    <Input
+                      value={endereco.bairro}
+                      onChange={(e) => aoMudarEndereco('bairro', e.target.value)}
+                      placeholder="Bairro"
+                      className={
+                        mostrarErrosEndereco && !endereco.bairro.trim() ? 'border-red-400' : ''
+                      }
+                    />
+                    {mostrarErrosEndereco && !endereco.bairro.trim() && (
+                      <p className={ERRO_CAMPO}>Informe o bairro</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-[2fr_1fr] gap-2">

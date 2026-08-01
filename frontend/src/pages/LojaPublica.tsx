@@ -5,7 +5,7 @@ import { CardProduto } from '../components/CardProduto';
 import { ResumoPedido } from '../components/ResumoPedido';
 import { api } from '../lib/api';
 import { montarVariaveisTema } from '../lib/cor';
-import { cepValido, EnderecoEntrega, maskCep, telefoneValido } from '../lib/endereco';
+import { cepValido, EnderecoEntrega, telefoneValido } from '../lib/endereco';
 import {
   FormaPagamento,
   ItemCarrinho,
@@ -19,10 +19,35 @@ const ENDERECO_VAZIO: EnderecoEntrega = {
   logradouro: '',
   numero: '',
   complemento: null,
+  bairro: '',
   cidade: '',
   estado: '',
   referencia: null,
 };
+
+function enderecoCompleto(valor: unknown): valor is EnderecoEntrega {
+  if (!valor || typeof valor !== 'object') return false;
+  const e = valor as Partial<EnderecoEntrega>;
+  return Boolean(
+    e.cep && cepValido(e.cep) && e.logradouro && e.numero && e.bairro && e.cidade && e.estado,
+  );
+}
+
+interface ClienteSalvo {
+  nome?: string;
+  telefone?: string;
+  endereco?: EnderecoEntrega;
+}
+
+function lerClienteSalvo(slug: string): ClienteSalvo | null {
+  const bruto = localStorage.getItem(`smartfood_cliente_${slug}`);
+  if (!bruto) return null;
+  try {
+    return JSON.parse(bruto) as ClienteSalvo;
+  } catch {
+    return null;
+  }
+}
 
 export function LojaPublica() {
   const { slug } = useParams<{ slug: string }>();
@@ -44,6 +69,7 @@ export function LojaPublica() {
   const [bairroSelecionadoId, setBairroSelecionadoId] = useState<string | null>(null);
   const [resumoAberto, setResumoAberto] = useState(false);
   const [endereco, setEndereco] = useState<EnderecoEntrega>(ENDERECO_VAZIO);
+  const [enderecoSalvo, setEnderecoSalvo] = useState<EnderecoEntrega | null>(null);
   const [modoEndereco, setModoEndereco] = useState<'resumo' | 'formulario'>('formulario');
   const [tentouEnviar, setTentouEnviar] = useState(false);
   const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -73,19 +99,27 @@ export function LojaPublica() {
     [loja?.corPrimaria, loja?.corSecundaria],
   );
 
+  // Nome, telefone e — quando existir — endereço da última Entrega ficam só
+  // no localStorage deste dispositivo (chave por loja). O backend nunca é
+  // consultado por telefone pra devolver endereço: um endpoint público sem
+  // autenticação do cliente não pode funcionar como busca de endereço de
+  // terceiros só por quem souber (ou tentar) um número de telefone.
   useEffect(() => {
     if (!slug) return;
-    const salvo = localStorage.getItem(`smartfood_cliente_${slug}`);
+    const salvo = lerClienteSalvo(slug);
     if (!salvo) return;
-    try {
-      const { nome: nomeSalvo, telefone: telefoneSalvo } = JSON.parse(salvo);
-      if (nomeSalvo) setNome(nomeSalvo);
-      if (telefoneSalvo) setTelefone(telefoneSalvo);
-    } catch {
-      // dado corrompido no localStorage — ignora e segue com os campos vazios
+    if (salvo.nome) setNome(salvo.nome);
+    if (salvo.telefone) setTelefone(salvo.telefone);
+    if (enderecoCompleto(salvo.endereco)) {
+      setEnderecoSalvo(salvo.endereco);
+      setEndereco(salvo.endereco);
+      setModoEndereco('resumo');
     }
   }, [slug]);
 
+  // "Pedir de novo" continua existindo (reconstrói o carrinho e preferências
+  // de pagamento a partir do último pedido), mas o endpoint que o alimenta
+  // não devolve mais nome/telefone/endereço — só itens e forma de pagamento.
   useEffect(() => {
     if (!slug || telefone.length < 8) {
       setPedidoAnterior(null);
@@ -100,45 +134,6 @@ export function LojaPublica() {
     }, 500);
     return () => clearTimeout(timer);
   }, [slug, telefone]);
-
-  // Endereço reutilizável: o último pedido de ENTREGA feito por esse telefone
-  // nesta loja, se tiver endereço completo salvo. Escopado por loja+telefone
-  // (mesma consulta isolada por tenant que já existe pro "Pedir de novo").
-  const enderecoSalvo: EnderecoEntrega | null = useMemo(() => {
-    if (!pedidoAnterior) return null;
-    const {
-      entregaCep,
-      entregaLogradouro,
-      entregaNumero,
-      entregaComplemento,
-      entregaCidade,
-      entregaEstado,
-      entregaReferencia,
-    } = pedidoAnterior;
-    if (!entregaCep || !entregaLogradouro || !entregaNumero || !entregaCidade || !entregaEstado) {
-      return null;
-    }
-    return {
-      cep: maskCep(entregaCep),
-      logradouro: entregaLogradouro,
-      numero: entregaNumero,
-      complemento: entregaComplemento,
-      cidade: entregaCidade,
-      estado: entregaEstado,
-      referencia: entregaReferencia,
-    };
-  }, [pedidoAnterior]);
-
-  // Só aplica o endereço salvo automaticamente na primeira vez que ele aparece
-  // — se dependesse do objeto inteiro, cada nova consulta (a cada tecla no
-  // telefone) sobrescreveria o que o cliente já estiver digitando/editando.
-  useEffect(() => {
-    if (enderecoSalvo) {
-      setEndereco(enderecoSalvo);
-      setModoEndereco('resumo');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enderecoSalvo !== null]);
 
   const produtosBusca = useMemo(() => {
     if (!loja || !busca.trim()) return [];
@@ -218,7 +213,6 @@ export function LojaPublica() {
       };
     }
     setCarrinho(novoCarrinho);
-    setNome(pedidoAnterior.clienteNome);
     setFormaPagamento(pedidoAnterior.formaPagamento);
     setPrecisaTroco(pedidoAnterior.precisaTroco ?? false);
     setTrocoPara(pedidoAnterior.trocoPara ? String(pedidoAnterior.trocoPara) : '');
@@ -250,8 +244,19 @@ export function LojaPublica() {
     cepValido(endereco.cep) &&
     endereco.logradouro.trim() !== '' &&
     endereco.numero.trim() !== '' &&
+    endereco.bairro.trim() !== '' &&
     endereco.cidade.trim() !== '' &&
     endereco.estado.trim() !== '';
+
+  function removerDadosSalvos() {
+    if (!slug) return;
+    localStorage.removeItem(`smartfood_cliente_${slug}`);
+    setNome('');
+    setTelefone('');
+    setEnderecoSalvo(null);
+    setEndereco(ENDERECO_VAZIO);
+    setModoEndereco('formulario');
+  }
 
   async function finalizarPedido() {
     setTentouEnviar(true);
@@ -297,10 +302,13 @@ export function LojaPublica() {
         // Aba bloqueada mesmo assim (ex: usuário desativou pop-ups) — navega a própria página.
         window.location.href = resposta.linkWhatsapp;
       }
-      localStorage.setItem(
-        `smartfood_cliente_${slug}`,
-        JSON.stringify({ nome: nome.trim(), telefone }),
-      );
+      // Retirada nunca apaga um endereço já salvo — só Entrega atualiza/grava um novo.
+      const enderecoParaSalvar =
+        formaRecebimento === 'entrega' ? endereco : (lerClienteSalvo(slug)?.endereco ?? undefined);
+      const dadosParaSalvar: ClienteSalvo = { nome: nome.trim(), telefone };
+      if (enderecoParaSalvar) dadosParaSalvar.endereco = enderecoParaSalvar;
+      localStorage.setItem(`smartfood_cliente_${slug}`, JSON.stringify(dadosParaSalvar));
+      setEnderecoSalvo(enderecoCompleto(enderecoParaSalvar) ? enderecoParaSalvar : null);
       setCarrinho({});
       setResumoAberto(false);
       setTentouEnviar(false);
@@ -481,6 +489,7 @@ export function LojaPublica() {
           }}
           enderecoLoja={loja.endereco}
           tentouEnviar={tentouEnviar}
+          aoRemoverDadosSalvos={removerDadosSalvos}
         />
       )}
 

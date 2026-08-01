@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env } from '../env';
 import { prisma } from '../prisma';
@@ -10,8 +11,22 @@ import {
 } from '../utils/endereco';
 import { calcularAberto } from '../utils/horario';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
+import { projetarPedidoAnteriorPublico } from '../utils/pedidoPublico';
 
 export const publicRouter = Router();
+
+// Limita tentativas de telefone nesse endpoint: ele não autentica o cliente
+// (só filtra por loja+telefone), então sem isso alguém poderia varrer
+// números de telefone em sequência tentando achar pedidos de terceiros.
+// Best-effort: em Cloud Functions cada instância tem sua própria contagem
+// em memória, não é um limite global garantido — ver risco residual
+// documentado no relatório da missão.
+const limitadorUltimoPedido = rateLimit({
+  windowMs: 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 publicRouter.get('/lojas/:slug', async (req, res) => {
   const loja = await prisma.loja.findUnique({
@@ -67,7 +82,13 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
   });
 });
 
-publicRouter.get('/lojas/:slug/pedidos/ultimo', async (req, res) => {
+// Endpoint público, sem autenticação do cliente — devolve só o mínimo pra
+// alimentar "Pedir de novo" (itens + preferências de pagamento). Nome,
+// telefone e endereço NUNCA são devolvidos aqui: são reaproveitados via
+// localStorage no próprio navegador do cliente (ver LojaPublica.tsx), não
+// consultados no backend por telefone. Isso evita que alguém descubra dados
+// de um cliente só sabendo (ou tentando) um número de telefone.
+publicRouter.get('/lojas/:slug/pedidos/ultimo', limitadorUltimoPedido, async (req, res) => {
   const telefone = normalizarTelefone(String(req.query.telefone ?? ''));
   if (!telefone) {
     return res.status(400).json({ erro: 'Informe o telefone' });
@@ -83,7 +104,7 @@ publicRouter.get('/lojas/:slug/pedidos/ultimo', async (req, res) => {
     orderBy: { criadoEm: 'desc' },
   });
 
-  res.json(pedido ?? null);
+  res.json(pedido ? projetarPedidoAnteriorPublico(pedido) : null);
 });
 
 publicRouter.get('/lojas/:slug/pedidos/:id', async (req, res) => {
@@ -123,6 +144,7 @@ const enderecoEntregaSchema = z.object({
   logradouro: z.string(),
   numero: z.string(),
   complemento: z.string().nullable().optional(),
+  bairro: z.string(),
   cidade: z.string(),
   estado: z.string(),
   referencia: z.string().nullable().optional(),
@@ -263,6 +285,7 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       entregaLogradouro: enderecoValidado?.logradouro ?? null,
       entregaNumero: enderecoValidado?.numero ?? null,
       entregaComplemento: enderecoValidado?.complemento ?? null,
+      entregaBairro: enderecoValidado?.bairro ?? null,
       entregaCidade: enderecoValidado?.cidade ?? null,
       entregaEstado: enderecoValidado?.estado ?? null,
       entregaReferencia: enderecoValidado?.referencia ?? null,

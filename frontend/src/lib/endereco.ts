@@ -33,6 +33,7 @@ export interface EnderecoEntrega {
   logradouro: string;
   numero: string;
   complemento: string | null;
+  bairro: string;
   cidade: string;
   estado: string;
   referencia: string | null;
@@ -67,23 +68,16 @@ export function telefoneValido(valor: string): boolean {
 
 /** Uma linha, usada no card "Entregar em" resumido e na lista do painel. */
 export function formatarEnderecoResumo(
-  endereco: Pick<EnderecoEntrega, 'logradouro' | 'numero' | 'cidade' | 'estado'>,
-  bairro: string | null,
+  endereco: Pick<EnderecoEntrega, 'logradouro' | 'numero' | 'bairro' | 'cidade' | 'estado'>,
 ): string {
-  const partes = [`${endereco.logradouro}, ${endereco.numero}`];
-  if (bairro) partes.push(bairro);
-  partes.push(`${endereco.cidade}/${endereco.estado}`);
-  return partes.join(' — ');
+  return `${endereco.logradouro}, ${endereco.numero} — ${endereco.bairro} — ${endereco.cidade}/${endereco.estado}`;
 }
 
 /** Todas as linhas, usadas no detalhe do painel e na ação "Copiar endereço". */
-export function formatarEnderecoCompleto(
-  endereco: EnderecoEntrega,
-  bairro: string | null,
-): string[] {
+export function formatarEnderecoCompleto(endereco: EnderecoEntrega): string[] {
   const linhas = [`${endereco.logradouro}, ${endereco.numero}`];
   if (endereco.complemento) linhas.push(endereco.complemento);
-  if (bairro) linhas.push(bairro);
+  linhas.push(endereco.bairro);
   linhas.push(`${endereco.cidade}/${endereco.estado}`);
   linhas.push(`CEP: ${maskCep(endereco.cep)}`);
   if (endereco.referencia) linhas.push(`Referência: ${endereco.referencia}`);

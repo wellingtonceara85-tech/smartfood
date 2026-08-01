@@ -57,36 +57,29 @@ it('UFS_BRASIL tem as 27 unidades federativas', () => {
 
 describe('formatarEnderecoResumo', () => {
   it('monta uma linha com rua, número, bairro e cidade/UF', () => {
-    const resumo = formatarEnderecoResumo(
-      { logradouro: 'Rua Exemplo', numero: '123', cidade: 'Fortaleza', estado: 'CE' },
-      'Centro',
-    );
+    const resumo = formatarEnderecoResumo({
+      logradouro: 'Rua Exemplo',
+      numero: '123',
+      bairro: 'Centro',
+      cidade: 'Fortaleza',
+      estado: 'CE',
+    });
     expect(resumo).toBe('Rua Exemplo, 123 — Centro — Fortaleza/CE');
-  });
-
-  it('funciona sem bairro', () => {
-    const resumo = formatarEnderecoResumo(
-      { logradouro: 'Rua Exemplo', numero: '123', cidade: 'Fortaleza', estado: 'CE' },
-      null,
-    );
-    expect(resumo).toBe('Rua Exemplo, 123 — Fortaleza/CE');
   });
 });
 
 describe('formatarEnderecoCompleto', () => {
   it('inclui complemento e referência quando presentes', () => {
-    const linhas = formatarEnderecoCompleto(
-      {
-        cep: '60000000',
-        logradouro: 'Rua Exemplo',
-        numero: '123',
-        complemento: 'Apto 201',
-        cidade: 'Fortaleza',
-        estado: 'CE',
-        referencia: 'Próximo à praça',
-      },
-      'Centro',
-    );
+    const linhas = formatarEnderecoCompleto({
+      cep: '60000000',
+      logradouro: 'Rua Exemplo',
+      numero: '123',
+      complemento: 'Apto 201',
+      bairro: 'Centro',
+      cidade: 'Fortaleza',
+      estado: 'CE',
+      referencia: 'Próximo à praça',
+    });
     expect(linhas).toEqual([
       'Rua Exemplo, 123',
       'Apto 201',
@@ -98,18 +91,16 @@ describe('formatarEnderecoCompleto', () => {
   });
 
   it('omite complemento e referência quando ausentes', () => {
-    const linhas = formatarEnderecoCompleto(
-      {
-        cep: '60000000',
-        logradouro: 'Rua Exemplo',
-        numero: '123',
-        complemento: null,
-        cidade: 'Fortaleza',
-        estado: 'CE',
-        referencia: null,
-      },
-      null,
-    );
-    expect(linhas).toEqual(['Rua Exemplo, 123', 'Fortaleza/CE', 'CEP: 60000-000']);
+    const linhas = formatarEnderecoCompleto({
+      cep: '60000000',
+      logradouro: 'Rua Exemplo',
+      numero: '123',
+      complemento: null,
+      bairro: 'Centro',
+      cidade: 'Fortaleza',
+      estado: 'CE',
+      referencia: null,
+    });
+    expect(linhas).toEqual(['Rua Exemplo, 123', 'Centro', 'Fortaleza/CE', 'CEP: 60000-000']);
   });
 });

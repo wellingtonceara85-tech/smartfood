@@ -17,6 +17,7 @@ function enderecoDoPedido(pedido: PedidoAdmin): EnderecoEntrega | null {
     !pedido.entregaCep ||
     !pedido.entregaLogradouro ||
     !pedido.entregaNumero ||
+    !pedido.entregaBairro ||
     !pedido.entregaCidade ||
     !pedido.entregaEstado
   ) {
@@ -27,6 +28,7 @@ function enderecoDoPedido(pedido: PedidoAdmin): EnderecoEntrega | null {
     logradouro: pedido.entregaLogradouro,
     numero: pedido.entregaNumero,
     complemento: pedido.entregaComplemento,
+    bairro: pedido.entregaBairro,
     cidade: pedido.entregaCidade,
     estado: pedido.entregaEstado,
     referencia: pedido.entregaReferencia,
@@ -99,9 +101,7 @@ function EnderecoPedido({ pedido }: { pedido: PedidoAdmin }) {
   async function copiarEndereco() {
     if (!endereco) return;
     try {
-      await navigator.clipboard.writeText(
-        formatarEnderecoCompleto(endereco, pedido.bairroEntregaNome).join('\n'),
-      );
+      await navigator.clipboard.writeText(formatarEnderecoCompleto(endereco).join('\n'));
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2000);
     } catch {
@@ -111,7 +111,7 @@ function EnderecoPedido({ pedido }: { pedido: PedidoAdmin }) {
 
   return (
     <div className="text-xs text-gray-600">
-      <p>{formatarEnderecoResumo(endereco, pedido.bairroEntregaNome)}</p>
+      <p>{formatarEnderecoResumo(endereco)}</p>
       <div className="mt-1 flex flex-wrap gap-2">
         <button
           type="button"
@@ -135,8 +135,8 @@ function EnderecoPedido({ pedido }: { pedido: PedidoAdmin }) {
             {endereco.logradouro}, {endereco.numero}
             {endereco.complemento ? ` - ${endereco.complemento}` : ''}
           </li>
+          <li>{endereco.bairro}</li>
           <li>
-            {pedido.bairroEntregaNome ? `${pedido.bairroEntregaNome} - ` : ''}
             {endereco.cidade}/{endereco.estado}
           </li>
           {endereco.referencia && <li>Referência: {endereco.referencia}</li>}

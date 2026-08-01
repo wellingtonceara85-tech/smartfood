@@ -16,7 +16,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "tsx --test src/utils/cor.test.ts src/utils/endereco.test.ts src/utils/mensagemWhatsapp.test.ts"
+    "test": "tsx --test src/utils/cor.test.ts src/utils/endereco.test.ts src/utils/mensagemWhatsapp.test.ts src/utils/pedidoPublico.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
@@ -25,6 +25,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.6.1",
     "firebase-admin": "^13.0.2",
     "firebase-functions": "^6.2.0",
     "helmet": "^8.0.0",
