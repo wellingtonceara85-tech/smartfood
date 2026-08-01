@@ -13,7 +13,12 @@ function serializarBairro(bairro: BairroEntrega) {
 }
 
 function serializarPedido(pedido: Pedido) {
-  return { ...pedido, total: Number(pedido.total), valorEntrega: Number(pedido.valorEntrega) };
+  return {
+    ...pedido,
+    total: Number(pedido.total),
+    valorEntrega: Number(pedido.valorEntrega),
+    trocoPara: pedido.trocoPara === null ? null : Number(pedido.trocoPara),
+  };
 }
 
 const STATUS_PEDIDO = ['recebido', 'em_preparo', 'pronto', 'entregue'] as const;

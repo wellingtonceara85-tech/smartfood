@@ -369,6 +369,9 @@ export function PainelProdutos() {
               <span className="text-sm font-medium text-gray-700">Foto do produto</span>
               <input type="file" accept="image/*" onChange={aoSelecionarFoto} className="text-sm" />
               {enviandoFoto && <span className="text-xs text-gray-500">Enviando...</span>}
+              <span className="text-xs text-gray-500">
+                Recomendado: foto quadrada, mínimo 600x600px, produto centralizado
+              </span>
             </label>
           </div>
           <input

@@ -314,7 +314,6 @@ export function LojaPublica() {
 
       <footer className="mx-auto max-w-2xl px-4 py-6 text-center text-xs text-gray-400">
         <p className="font-medium text-gray-600">{loja.nome}</p>
-        <p>{loja.telefoneWhatsapp}</p>
         {loja.endereco && <p>{loja.endereco}</p>}
       </footer>
     </div>
