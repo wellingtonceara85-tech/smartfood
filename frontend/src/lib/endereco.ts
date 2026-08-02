@@ -66,6 +66,11 @@ export function telefoneValido(valor: string): boolean {
   return digitos.length === 10 || digitos.length === 11;
 }
 
+/** "R$ 5,00" ou "Grátis" quando o valor é zero — usado no select de bairros, no card "Entregar em" e no resumo do pedido. */
+export function formatarValorEntrega(valor: number): string {
+  return valor === 0 ? 'Grátis' : `R$ ${valor.toFixed(2).replace('.', ',')}`;
+}
+
 /** Uma linha, usada no card "Entregar em" resumido e na lista do painel. */
 export function formatarEnderecoResumo(
   endereco: Pick<EnderecoEntrega, 'logradouro' | 'numero' | 'bairro' | 'cidade' | 'estado'>,

@@ -137,6 +137,7 @@ const itemPedidoSchema = z.object({
   produtoId: z.string().uuid(),
   opcao: z.string().nullable().optional(),
   quantidade: z.number().int().min(1),
+  observacao: z.string().max(280).nullable().optional(),
 });
 
 const enderecoEntregaSchema = z.object({
@@ -194,6 +195,7 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
     quantidade: number;
     precoUnitario: number;
     subtotal: number;
+    observacao: string | null;
   }[] = [];
 
   for (const item of parsed.data.itens) {
@@ -214,6 +216,7 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       quantidade: item.quantidade,
       precoUnitario,
       subtotal,
+      observacao: item.observacao?.trim() || null,
     });
   }
 
@@ -238,8 +241,14 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
 
     // Nunca confiar só na validação do frontend — endereço é revalidado aqui
     // mesmo que os campos existam no payload, incluindo casos de campo
-    // desabilitado/oculto manipulado no cliente.
-    const resultadoEndereco = validarEnderecoEntrega(parsed.data.enderecoEntrega);
+    // desabilitado/oculto manipulado no cliente. O nome do bairro em
+    // particular nunca vem do texto que o cliente enviou: vem do registro de
+    // BairroEntrega que acabou de ser confirmado como ativo e desta loja —
+    // o cliente só escolhe o bairro numa lista, nunca digita o nome dele.
+    const resultadoEndereco = validarEnderecoEntrega({
+      ...parsed.data.enderecoEntrega,
+      bairro: bairro.nomeBairro,
+    });
     if (!resultadoEndereco.valido) {
       return res.status(400).json({ erro: resultadoEndereco.erro });
     }

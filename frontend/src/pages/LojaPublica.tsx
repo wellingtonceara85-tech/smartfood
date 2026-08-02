@@ -1,7 +1,9 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { BarraResumoCompacta } from '../components/BarraResumoCompacta';
+import { CardEntregaTopo } from '../components/CardEntregaTopo';
 import { CardProduto } from '../components/CardProduto';
+import { ModalProduto } from '../components/ModalProduto';
 import { ResumoPedido } from '../components/ResumoPedido';
 import { api } from '../lib/api';
 import { montarVariaveisTema } from '../lib/cor';
@@ -72,6 +74,7 @@ export function LojaPublica() {
   const [enderecoSalvo, setEnderecoSalvo] = useState<EnderecoEntrega | null>(null);
   const [modoEndereco, setModoEndereco] = useState<'resumo' | 'formulario'>('formulario');
   const [tentouEnviar, setTentouEnviar] = useState(false);
+  const [produtoModalAberto, setProdutoModalAberto] = useState<Produto | null>(null);
   const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -116,6 +119,17 @@ export function LojaPublica() {
       setModoEndereco('resumo');
     }
   }, [slug]);
+
+  // O bairro salvo localmente é só um nome — precisa ser reencontrado na
+  // lista atual de bairros ativos da loja (o cadastro pode ter mudado desde
+  // o último pedido). Se não achar por nome exato, não inventa associação:
+  // o cliente só vê o endereço e precisa escolher o bairro de novo.
+  useEffect(() => {
+    if (!enderecoSalvo || !loja) return;
+    const bairroEncontrado = loja.bairrosEntrega.find((b) => b.nomeBairro === enderecoSalvo.bairro);
+    if (bairroEncontrado) setBairroSelecionadoId(bairroEncontrado.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enderecoSalvo !== null, loja !== null]);
 
   // "Pedir de novo" continua existindo (reconstrói o carrinho e preferências
   // de pagamento a partir do último pedido), mas o endpoint que o alimenta
@@ -178,8 +192,16 @@ export function LojaPublica() {
     categoriaRefs.current[categoriaId]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function adicionarAoCarrinho(produto: Produto, opcao: string | null, quantidade: number) {
-    const chave = `${produto.id}-${opcao ?? ''}`;
+  function adicionarAoCarrinho(
+    produto: Produto,
+    opcao: string | null,
+    quantidade: number,
+    observacao: string | null,
+  ) {
+    // Observação entra na chave: dois lançamentos do mesmo produto+opção com
+    // observações diferentes ("sem cebola" vs "sem sal") não podem se fundir
+    // num único item silenciosamente perdendo uma das observações.
+    const chave = `${produto.id}-${opcao ?? ''}-${observacao ?? ''}`;
     setCarrinho((atual) => ({
       ...atual,
       [chave]: {
@@ -188,8 +210,15 @@ export function LojaPublica() {
         preco: produto.preco,
         opcao,
         quantidade: (atual[chave]?.quantidade ?? 0) + quantidade,
+        observacao,
       },
     }));
+  }
+
+  // Produto simples: "+" adiciona 1 unidade direto, sem modal. Toques
+  // repetidos incrementam a quantidade (mesma chave, mesmo merge de sempre).
+  function adicionarProdutoSimples(produto: Produto) {
+    adicionarAoCarrinho(produto, null, 1, null);
   }
 
   function removerItem(chave: string) {
@@ -204,12 +233,13 @@ export function LojaPublica() {
     if (!pedidoAnterior) return;
     const novoCarrinho: Record<string, ItemCarrinho> = {};
     for (const item of pedidoAnterior.itens) {
-      novoCarrinho[`${item.produtoId}-${item.opcao ?? ''}`] = {
+      novoCarrinho[`${item.produtoId}-${item.opcao ?? ''}-${item.observacao ?? ''}`] = {
         produtoId: item.produtoId,
         nome: item.nome,
         preco: item.precoUnitario,
         opcao: item.opcao,
         quantidade: item.quantidade,
+        observacao: item.observacao,
       };
     }
     setCarrinho(novoCarrinho);
@@ -248,6 +278,15 @@ export function LojaPublica() {
     endereco.cidade.trim() !== '' &&
     endereco.estado.trim() !== '';
 
+  // Fonte única do bairro: o cliente escolhe numa lista (nunca digita), e a
+  // escolha alimenta tanto a taxa de entrega quanto o campo bairro do
+  // endereço — não existem mais dois controles de bairro desencontrados.
+  function mudarBairroSelecionado(id: string | null) {
+    setBairroSelecionadoId(id);
+    const bairro = loja?.bairrosEntrega.find((b) => b.id === id);
+    setEndereco((atual) => ({ ...atual, bairro: bairro?.nomeBairro ?? '' }));
+  }
+
   function removerDadosSalvos() {
     if (!slug) return;
     localStorage.removeItem(`smartfood_cliente_${slug}`);
@@ -283,6 +322,7 @@ export function LojaPublica() {
             produtoId: item.produtoId,
             opcao: item.opcao,
             quantidade: item.quantidade,
+            observacao: item.observacao,
           })),
           formaRecebimento,
           bairroEntregaId: formaRecebimento === 'entrega' ? bairroSelecionadoId : null,
@@ -367,6 +407,15 @@ export function LojaPublica() {
       </header>
 
       <div className="mx-auto max-w-2xl px-4 py-4">
+        {itensCarrinho.length > 0 && (
+          <CardEntregaTopo
+            formaRecebimento={formaRecebimento}
+            bairroNome={bairroSelecionado?.nomeBairro ?? null}
+            valorEntrega={taxaEntrega}
+            aoAlterar={() => setResumoAberto(true)}
+          />
+        )}
+
         <input
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
@@ -406,7 +455,12 @@ export function LojaPublica() {
         {busca.trim() ? (
           <div className="flex flex-col gap-3">
             {produtosBusca.map((produto) => (
-              <CardProduto key={produto.id} produto={produto} aoAdicionar={adicionarAoCarrinho} />
+              <CardProduto
+                key={produto.id}
+                produto={produto}
+                aoAdicionarDireto={adicionarProdutoSimples}
+                aoAbrirModal={setProdutoModalAberto}
+              />
             ))}
             {produtosBusca.length === 0 && (
               <p className="text-sm text-gray-500">Nenhum produto encontrado.</p>
@@ -429,7 +483,8 @@ export function LojaPublica() {
                     <CardProduto
                       key={produto.id}
                       produto={produto}
-                      aoAdicionar={adicionarAoCarrinho}
+                      aoAdicionarDireto={adicionarProdutoSimples}
+                      aoAbrirModal={setProdutoModalAberto}
                     />
                   ))}
                   {categoria.produtos.length === 0 && (
@@ -468,7 +523,7 @@ export function LojaPublica() {
           formaRecebimento={formaRecebimento}
           aoMudarFormaRecebimento={setFormaRecebimento}
           bairroSelecionadoId={bairroSelecionadoId}
-          aoMudarBairro={setBairroSelecionadoId}
+          aoMudarBairro={mudarBairroSelecionado}
           taxaEntrega={taxaEntrega}
           chavePix={loja.chavePix}
           formaPagamento={formaPagamento}
@@ -490,6 +545,14 @@ export function LojaPublica() {
           enderecoLoja={loja.endereco}
           tentouEnviar={tentouEnviar}
           aoRemoverDadosSalvos={removerDadosSalvos}
+        />
+      )}
+
+      {produtoModalAberto && (
+        <ModalProduto
+          produto={produtoModalAberto}
+          aoFechar={() => setProdutoModalAberto(null)}
+          aoAdicionar={adicionarAoCarrinho}
         />
       )}
 

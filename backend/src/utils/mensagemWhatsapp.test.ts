@@ -85,3 +85,54 @@ test('mensagem de Retirada não contém bloco de endereço', () => {
   assert.doesNotMatch(mensagem, /Endereço:/);
   assert.doesNotMatch(mensagem, /CEP:/);
 });
+
+test('mensagem inclui a observação do item quando presente', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [{ nome: 'X-Burguer', opcao: null, quantidade: 1, subtotal: 22.9, observacao: 'Sem cebola' }],
+    22.9,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /Obs: Sem cebola/);
+});
+
+test('mensagem não inclui linha de observação quando ausente', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    itensBase,
+    22.9,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.doesNotMatch(mensagem, /Obs:/);
+});
+
+test('taxa de entrega grátis aparece como "Grátis" em vez de R$ 0,00', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    itensBase,
+    22.9,
+    {
+      forma: 'entrega',
+      bairroNome: 'Centro',
+      valorEntrega: 0,
+      endereco: {
+        cep: '60000000',
+        logradouro: 'Rua Exemplo',
+        numero: '123',
+        complemento: null,
+        bairro: 'Centro',
+        cidade: 'Fortaleza',
+        estado: 'CE',
+        referencia: null,
+      },
+    },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /Entrega - Centro \(Grátis\)/);
+  assert.doesNotMatch(mensagem, /R\$ 0,00/);
+});

@@ -3,6 +3,7 @@ import {
   cepValido,
   formatarEnderecoCompleto,
   formatarEnderecoResumo,
+  formatarValorEntrega,
   maskCep,
   maskTelefone,
   telefoneValido,
@@ -102,5 +103,16 @@ describe('formatarEnderecoCompleto', () => {
       referencia: null,
     });
     expect(linhas).toEqual(['Rua Exemplo, 123', 'Centro', 'Fortaleza/CE', 'CEP: 60000-000']);
+  });
+});
+
+describe('formatarValorEntrega', () => {
+  it('formata valores positivos em moeda', () => {
+    expect(formatarValorEntrega(5)).toBe('R$ 5,00');
+    expect(formatarValorEntrega(12.5)).toBe('R$ 12,50');
+  });
+
+  it('mostra "Grátis" quando o valor é zero', () => {
+    expect(formatarValorEntrega(0)).toBe('Grátis');
   });
 });

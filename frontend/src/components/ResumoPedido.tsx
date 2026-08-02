@@ -3,6 +3,7 @@ import {
   cepValido,
   EnderecoEntrega,
   formatarEnderecoResumo,
+  formatarValorEntrega,
   maskCep,
   maskTelefone,
   telefoneValido,
@@ -123,6 +124,8 @@ export function ResumoPedido({
     ...(chavePix ? [{ valor: 'pix' as const, rotulo: 'Pix', icone: '📱' }] : []),
   ];
 
+  const subtotal = itens.reduce((soma, item) => soma + item.preco * item.quantidade, 0);
+
   return (
     <>
       <button
@@ -150,34 +153,33 @@ export function ResumoPedido({
 
           {itens.length > 0 && (
             <ul className="mb-3 max-h-32 overflow-y-auto text-sm">
-              {itens.map((item) => (
-                <li
-                  key={`${item.produtoId}-${item.opcao ?? ''}`}
-                  className="flex justify-between py-1"
-                >
-                  <span>
-                    {item.quantidade}x {item.nome}
-                    {item.opcao ? ` (${item.opcao})` : ''}
-                  </span>
-                  <span className="flex items-center gap-2">
-                    R$ {(item.preco * item.quantidade).toFixed(2)}
-                    <button
-                      type="button"
-                      onClick={() => removerItem(`${item.produtoId}-${item.opcao ?? ''}`)}
-                      className="text-red-600 transition-colors hover:text-red-700"
-                      aria-label="Remover item"
-                    >
-                      ×
-                    </button>
-                  </span>
-                </li>
-              ))}
-              {formaRecebimento === 'entrega' && taxaEntrega > 0 && (
-                <li className="flex justify-between py-1 text-gray-500">
-                  <span>Taxa de entrega</span>
-                  <span>R$ {taxaEntrega.toFixed(2)}</span>
-                </li>
-              )}
+              {itens.map((item) => {
+                const chave = `${item.produtoId}-${item.opcao ?? ''}-${item.observacao ?? ''}`;
+                return (
+                  <li key={chave} className="flex justify-between py-1">
+                    <span>
+                      {item.quantidade}x {item.nome}
+                      {item.opcao ? ` (${item.opcao})` : ''}
+                      {item.observacao && (
+                        <span className="block text-xs italic text-gray-400">
+                          Obs: {item.observacao}
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      R$ {(item.preco * item.quantidade).toFixed(2)}
+                      <button
+                        type="button"
+                        onClick={() => removerItem(chave)}
+                        className="text-red-600 transition-colors hover:text-red-700"
+                        aria-label="Remover item"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
@@ -212,10 +214,10 @@ export function ResumoPedido({
                     onChange={(e) => aoMudarBairro(e.target.value || null)}
                     className="flex-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   >
-                    <option value="">Selecione o bairro</option>
+                    <option value="">Selecione seu bairro</option>
                     {bairros.map((bairro) => (
                       <option key={bairro.id} value={bairro.id}>
-                        {bairro.nomeBairro} — R$ {bairro.valorEntrega.toFixed(2)}
+                        {bairro.nomeBairro} — Entrega {formatarValorEntrega(bairro.valorEntrega)}
                       </option>
                     ))}
                   </select>
@@ -333,20 +335,6 @@ export function ResumoPedido({
                       onChange={(e) => aoMudarEndereco('complemento', e.target.value)}
                       placeholder="Complemento (opcional)"
                     />
-                  </div>
-
-                  <div>
-                    <Input
-                      value={endereco.bairro}
-                      onChange={(e) => aoMudarEndereco('bairro', e.target.value)}
-                      placeholder="Bairro"
-                      className={
-                        mostrarErrosEndereco && !endereco.bairro.trim() ? 'border-red-400' : ''
-                      }
-                    />
-                    {mostrarErrosEndereco && !endereco.bairro.trim() && (
-                      <p className={ERRO_CAMPO}>Informe o bairro</p>
-                    )}
                   </div>
 
                   <div className="grid grid-cols-[2fr_1fr] gap-2">
@@ -506,12 +494,28 @@ export function ResumoPedido({
             Seus dados serão utilizados para processar e entregar este pedido.
           </p>
 
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-gray-800">Total: R$ {total.toFixed(2)}</span>
+          <div className="mb-3 flex flex-col gap-1 text-sm text-gray-600">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>R$ {subtotal.toFixed(2)}</span>
+            </div>
+            {formaRecebimento === 'entrega' && bairroSelecionadoId && (
+              <div className="flex justify-between">
+                <span>Entrega</span>
+                <span>{formatarValorEntrega(taxaEntrega)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-base font-semibold text-gray-800">
+              <span>Total</span>
+              <span>R$ {total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
             <Button
               type="button"
               tamanho="md"
-              className="rounded-full px-5 shadow-sm"
+              className="w-full justify-center rounded-full shadow-sm"
               disabled={
                 itens.length === 0 ||
                 finalizando ||

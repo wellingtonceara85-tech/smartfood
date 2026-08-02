@@ -3,6 +3,7 @@ interface ItemMensagem {
   opcao?: string | null;
   quantidade: number;
   subtotal: number;
+  observacao?: string | null;
 }
 
 interface EnderecoMensagem {
@@ -36,6 +37,7 @@ interface PedidoMensagem {
 }
 
 const moeda = (valor: number) => `R$ ${valor.toFixed(2).replace('.', ',')}`;
+const moedaOuGratis = (valor: number) => (valor === 0 ? 'Grátis' : moeda(valor));
 
 const LABEL_PAGAMENTO: Record<string, string> = {
   dinheiro: 'Dinheiro',
@@ -64,11 +66,14 @@ export function montarMensagemPedido(
   for (const item of itens) {
     const descricaoOpcao = item.opcao ? ` (${item.opcao})` : '';
     linhas.push(`*${item.quantidade}x ${item.nome}${descricaoOpcao}* - ${moeda(item.subtotal)}`);
+    if (item.observacao) {
+      linhas.push(`  Obs: ${item.observacao}`);
+    }
   }
 
   const linhaRecebimento =
     recebimento.forma === 'entrega'
-      ? `Forma de recebimento: Entrega - ${recebimento.bairroNome} (${moeda(recebimento.valorEntrega ?? 0)})`
+      ? `Forma de recebimento: Entrega - ${recebimento.bairroNome} (${moedaOuGratis(recebimento.valorEntrega ?? 0)})`
       : 'Forma de recebimento: Retirada no local';
 
   linhas.push('', linhaRecebimento);

@@ -63,6 +63,7 @@ export interface ItemCarrinho {
   preco: number;
   opcao: string | null;
   quantidade: number;
+  observacao: string | null;
 }
 
 export interface Usuario {
@@ -94,6 +95,7 @@ export interface ItemPedidoRegistrado {
   quantidade: number;
   precoUnitario: number;
   subtotal: number;
+  observacao: string | null;
 }
 
 export interface EnderecoEntregaPedido {

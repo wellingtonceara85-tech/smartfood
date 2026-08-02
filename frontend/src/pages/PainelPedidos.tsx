@@ -7,6 +7,7 @@ import {
   EnderecoEntrega,
   formatarEnderecoCompleto,
   formatarEnderecoResumo,
+  formatarValorEntrega,
   maskCep,
 } from '../lib/endereco';
 import { ORDEM_STATUS, rotuloStatus } from '../lib/statusPedido';
@@ -253,6 +254,11 @@ export function PainelPedidos() {
                         <li key={i}>
                           {item.quantidade}x {item.nome}
                           {item.opcao ? ` (${item.opcao})` : ''}
+                          {item.observacao && (
+                            <span className="block text-xs italic text-gray-400">
+                              Obs: {item.observacao}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -261,7 +267,8 @@ export function PainelPedidos() {
                     {pedido.formaRecebimento === 'entrega' ? (
                       <div>
                         <p>
-                          Entrega - {pedido.bairroEntregaNome} (R$ {pedido.valorEntrega.toFixed(2)})
+                          Entrega - {pedido.bairroEntregaNome} (
+                          {formatarValorEntrega(pedido.valorEntrega)})
                         </p>
                         <div className="mt-1">
                           <EnderecoPedido pedido={pedido} />
@@ -309,13 +316,18 @@ export function PainelPedidos() {
                 <li key={i}>
                   {item.quantidade}x {item.nome}
                   {item.opcao ? ` (${item.opcao})` : ''}
+                  {item.observacao && (
+                    <span className="block text-xs italic text-gray-400">
+                      Obs: {item.observacao}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
 
             <p className="mt-2 text-sm text-gray-600">
               {pedido.formaRecebimento === 'entrega'
-                ? `Entrega - ${pedido.bairroEntregaNome} (R$ ${pedido.valorEntrega.toFixed(2)})`
+                ? `Entrega - ${pedido.bairroEntregaNome} (${formatarValorEntrega(pedido.valorEntrega)})`
                 : 'Retirada no local'}
               {' · '}
               {detalhePagamento(pedido)}

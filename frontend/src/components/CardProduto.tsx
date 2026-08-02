@@ -1,21 +1,39 @@
 import { useState } from 'react';
+import { produtoConfiguravel } from '../lib/produto';
 import { Produto } from '../types';
 import { Card } from './ui/Card';
 
 interface Props {
   produto: Produto;
-  aoAdicionar: (produto: Produto, opcao: string | null, quantidade: number) => void;
+  aoAdicionarDireto: (produto: Produto) => void;
+  aoAbrirModal: (produto: Produto) => void;
 }
 
-export function CardProduto({ produto, aoAdicionar }: Props) {
-  const [opcao, setOpcao] = useState<string>(produto.opcoes?.[0] ?? '');
-  const [quantidade, setQuantidade] = useState(1);
-
+export function CardProduto({ produto, aoAdicionarDireto, aoAbrirModal }: Props) {
+  const [confirmado, setConfirmado] = useState(false);
   const indisponivel = !produto.disponivel;
+  const configuravel = produtoConfiguravel(produto);
+
+  function aoClicarCard() {
+    if (indisponivel) return;
+    if (configuravel) aoAbrirModal(produto);
+  }
+
+  function aoClicarMais(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (configuravel) {
+      aoAbrirModal(produto);
+      return;
+    }
+    aoAdicionarDireto(produto);
+    setConfirmado(true);
+    setTimeout(() => setConfirmado(false), 600);
+  }
 
   return (
     <Card
-      className={`flex justify-between gap-4 p-4 transition-shadow duration-150 hover:shadow-card-hover ${indisponivel ? 'opacity-60' : ''}`}
+      onClick={aoClicarCard}
+      className={`flex justify-between gap-4 p-4 transition-shadow duration-150 hover:shadow-card-hover ${indisponivel ? 'opacity-60' : ''} ${configuravel && !indisponivel ? 'cursor-pointer' : ''}`}
     >
       <div className="flex flex-1 flex-col">
         <p className="font-semibold text-gray-800">{produto.nome}</p>
@@ -26,66 +44,35 @@ export function CardProduto({ produto, aoAdicionar }: Props) {
           R$ {produto.preco.toFixed(2)}
         </p>
 
-        {indisponivel ? (
+        {indisponivel && (
           <span className="mt-2 inline-flex w-fit items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
             Indisponível no momento
           </span>
-        ) : (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {produto.opcoes && produto.opcoes.length > 0 && (
-              <select
-                value={opcao}
-                onChange={(e) => setOpcao(e.target.value)}
-                className="rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                {produto.opcoes.map((op) => (
-                  <option key={op} value={op}>
-                    {op}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setQuantidade((q) => Math.max(1, q - 1))}
-                aria-label="Diminuir quantidade"
-                className="h-7 w-7 rounded-full bg-gray-100 font-bold text-gray-700 transition-colors hover:bg-gray-200"
-              >
-                -
-              </button>
-              <span className="w-4 text-center text-sm">{quantidade}</span>
-              <button
-                type="button"
-                onClick={() => setQuantidade((q) => q + 1)}
-                aria-label="Aumentar quantidade"
-                className="h-7 w-7 rounded-full bg-gray-100 font-bold text-gray-700 transition-colors hover:bg-gray-200"
-              >
-                +
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => aoAdicionar(produto, opcao || null, quantidade)}
-              className="ml-auto rounded-full bg-primary px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover"
-            >
-              Adicionar
-            </button>
-          </div>
         )}
       </div>
 
-      {produto.fotoUrl ? (
-        <img
-          src={produto.fotoUrl}
-          alt={produto.nome}
-          className="h-28 w-28 shrink-0 rounded-lg object-cover"
-        />
-      ) : (
-        <div className="h-28 w-28 shrink-0 rounded-lg bg-gray-100" />
-      )}
+      <div className="relative shrink-0">
+        {produto.fotoUrl ? (
+          <img
+            src={produto.fotoUrl}
+            alt={produto.nome}
+            className="h-28 w-28 rounded-lg object-cover"
+          />
+        ) : (
+          <div className="h-28 w-28 rounded-lg bg-gray-100" />
+        )}
+
+        {!indisponivel && (
+          <button
+            type="button"
+            onClick={aoClicarMais}
+            aria-label={`Adicionar ${produto.nome}`}
+            className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xl font-bold leading-none text-primary-text shadow-md transition-transform hover:bg-primary-hover active:scale-95"
+          >
+            {confirmado ? '✓' : '+'}
+          </button>
+        )}
+      </div>
     </Card>
   );
 }
