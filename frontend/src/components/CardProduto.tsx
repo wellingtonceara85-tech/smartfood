@@ -67,9 +67,39 @@ export function CardProduto({ produto, aoAdicionarDireto, aoAbrirModal }: Props)
             type="button"
             onClick={aoClicarMais}
             aria-label={`Adicionar ${produto.nome}`}
-            className="absolute -bottom-1 -right-1 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-primary text-[26px] font-extrabold leading-none text-primary-text shadow-sm ring-2 ring-white transition-transform hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95"
+            className="absolute bottom-[1px] right-0 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-primary text-primary-text shadow-sm ring-2 ring-white transition-transform hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95"
           >
-            {confirmado ? '✓' : '+'}
+            {/* SVG em vez de caractere de texto: o glifo "+"/"✓" nunca fica
+                geometricamente centrado no próprio box da fonte (ascent/descent
+                assimétricos variam por fonte/navegador) — um ícone vetorial
+                centraliza de verdade dentro do flex, sem depender de métricas
+                de fonte. */}
+            {confirmado ? (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={3}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+                aria-hidden="true"
+              >
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={3.5}
+                strokeLinecap="round"
+                className="h-[18px] w-[18px]"
+                aria-hidden="true"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            )}
           </button>
         )}
       </div>
