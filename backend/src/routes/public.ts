@@ -58,6 +58,8 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     chavePix: loja.chavePix,
     telefoneWhatsapp: loja.telefoneWhatsapp,
     aberto: calcularAberto(loja),
+    horarioAbertura: loja.horarioAbertura,
+    horarioFechamento: loja.horarioFechamento,
     corPrimaria: corOuPadrao(loja.corPrimaria, COR_PRIMARIA_PADRAO),
     corSecundaria: corOuPadrao(loja.corSecundaria, COR_SECUNDARIA_PADRAO),
     bairrosEntrega: loja.bairrosEntrega.map((bairro) => ({

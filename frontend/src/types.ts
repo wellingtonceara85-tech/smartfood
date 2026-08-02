@@ -34,6 +34,8 @@ export interface LojaPublica {
   chavePix: string | null;
   telefoneWhatsapp: string;
   aberto: boolean;
+  horarioAbertura: string | null;
+  horarioFechamento: string | null;
   corPrimaria: string;
   corSecundaria: string;
   categorias: Categoria[];

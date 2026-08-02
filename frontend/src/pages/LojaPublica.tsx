@@ -1,5 +1,6 @@
 import { CSSProperties, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { BadgeHorario } from '../components/BadgeHorario';
 import { BarraResumoCompacta } from '../components/BarraResumoCompacta';
 import { CardEntregaTopo } from '../components/CardEntregaTopo';
 import { CardProduto } from '../components/CardProduto';
@@ -383,13 +384,11 @@ export function LojaPublica() {
           <div className="h-32 bg-gradient-to-r from-primary to-primary-hover sm:h-44" />
         )}
 
-        <span
-          className={`absolute right-4 top-4 rounded-full px-4 py-1.5 text-sm font-bold shadow ${
-            loja.aberto ? 'bg-primary text-primary-text' : 'bg-red-500 text-white'
-          }`}
-        >
-          {loja.aberto ? 'Aberto' : 'Fechado'}
-        </span>
+        <BadgeHorario
+          aberto={loja.aberto}
+          horarioAbertura={loja.horarioAbertura}
+          horarioFechamento={loja.horarioFechamento}
+        />
 
         <div className="-mt-14 flex flex-col items-center gap-1 px-4">
           {loja.logoUrl ? (

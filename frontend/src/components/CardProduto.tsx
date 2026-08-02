@@ -67,7 +67,7 @@ export function CardProduto({ produto, aoAdicionarDireto, aoAbrirModal }: Props)
             type="button"
             onClick={aoClicarMais}
             aria-label={`Adicionar ${produto.nome}`}
-            className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-xl font-bold leading-none text-primary-text shadow-md transition-transform hover:bg-primary-hover active:scale-95"
+            className="absolute -bottom-1 -right-1 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-primary text-[26px] font-extrabold leading-none text-primary-text shadow-sm ring-2 ring-white transition-transform hover:bg-primary-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95"
           >
             {confirmado ? '✓' : '+'}
           </button>
