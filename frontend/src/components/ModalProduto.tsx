@@ -5,6 +5,12 @@ import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
 import { Textarea } from './ui/Textarea';
 
+interface ValoresIniciais {
+  opcao: string | null;
+  quantidade: number;
+  observacao: string | null;
+}
+
 interface Props {
   produto: Produto;
   aoFechar: () => void;
@@ -14,12 +20,20 @@ interface Props {
     quantidade: number,
     observacao: string | null,
   ) => void;
+  valoresIniciais?: ValoresIniciais;
+  modoEdicao?: boolean;
 }
 
-export function ModalProduto({ produto, aoFechar, aoAdicionar }: Props) {
-  const [opcao, setOpcao] = useState(produto.opcoes?.[0] ?? '');
-  const [quantidade, setQuantidade] = useState(1);
-  const [observacao, setObservacao] = useState('');
+export function ModalProduto({
+  produto,
+  aoFechar,
+  aoAdicionar,
+  valoresIniciais,
+  modoEdicao,
+}: Props) {
+  const [opcao, setOpcao] = useState(valoresIniciais?.opcao ?? produto.opcoes?.[0] ?? '');
+  const [quantidade, setQuantidade] = useState(valoresIniciais?.quantidade ?? 1);
+  const [observacao, setObservacao] = useState(valoresIniciais?.observacao ?? '');
 
   const total = produto.preco * quantidade;
 
@@ -113,10 +127,15 @@ export function ModalProduto({ produto, aoFechar, aoAdicionar }: Props) {
         variante="primary"
         tamanho="md"
         onClick={aoConfirmar}
-        aria-label={`Adicionar ${produto.nome} ao pedido — total R$ ${total.toFixed(2)}`}
+        aria-label={
+          modoEdicao
+            ? `Salvar alterações de ${produto.nome} — total R$ ${total.toFixed(2)}`
+            : `Adicionar ${produto.nome} ao pedido — total R$ ${total.toFixed(2)}`
+        }
         className="mt-5 w-full justify-center text-base"
       >
-        <span aria-hidden="true">+</span> R$ {total.toFixed(2)}
+        <span aria-hidden="true">{modoEdicao ? '✓' : '+'}</span>{' '}
+        {modoEdicao ? `Salvar alterações — R$ ${total.toFixed(2)}` : `R$ ${total.toFixed(2)}`}
       </Button>
     </Modal>
   );

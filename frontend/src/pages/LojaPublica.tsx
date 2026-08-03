@@ -76,6 +76,9 @@ export function LojaPublica() {
   const [modoEndereco, setModoEndereco] = useState<'resumo' | 'formulario'>('formulario');
   const [tentouEnviar, setTentouEnviar] = useState(false);
   const [produtoModalAberto, setProdutoModalAberto] = useState<Produto | null>(null);
+  const [itemEditando, setItemEditando] = useState<{ chave: string; produto: Produto } | null>(
+    null,
+  );
   const categoriaRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -102,6 +105,17 @@ export function LojaPublica() {
         : undefined,
     [loja?.corPrimaria, loja?.corSecundaria],
   );
+
+  // Usado para reabrir o modal de personalização a partir de um item do
+  // carrinho (Editar): o carrinho só guarda produtoId, então o produto
+  // completo (fotoUrl, opções, descrição) precisa ser buscado no cardápio.
+  const produtosPorId = useMemo(() => {
+    const mapa = new Map<string, Produto>();
+    for (const categoria of loja?.categorias ?? []) {
+      for (const produto of categoria.produtos) mapa.set(produto.id, produto);
+    }
+    return mapa;
+  }, [loja]);
 
   // Nome, telefone e — quando existir — endereço da última Entrega ficam só
   // no localStorage deste dispositivo (chave por loja). O backend nunca é
@@ -226,6 +240,41 @@ export function LojaPublica() {
     setCarrinho((atual) => {
       const copia = { ...atual };
       delete copia[chave];
+      return copia;
+    });
+  }
+
+  function abrirEdicaoItem(chave: string) {
+    const item = carrinho[chave];
+    const produto = item ? produtosPorId.get(item.produtoId) : undefined;
+    if (!item || !produto) return;
+    setItemEditando({ chave, produto });
+  }
+
+  // Substitui o item pela nova configuração em vez de somar quantidade —
+  // diferente de adicionarAoCarrinho, que sempre soma. Se a edição resultar
+  // na mesma chave de outro item já existente no carrinho, funde as
+  // quantidades (mesmo comportamento de "duas linhas iguais" do resto do app)
+  // em vez de sobrescrever silenciosamente aquele outro item.
+  function salvarEdicaoItem(
+    chaveAntiga: string,
+    produto: Produto,
+    opcao: string | null,
+    quantidade: number,
+    observacao: string | null,
+  ) {
+    setCarrinho((atual) => {
+      const copia = { ...atual };
+      delete copia[chaveAntiga];
+      const novaChave = `${produto.id}-${opcao ?? ''}-${observacao ?? ''}`;
+      copia[novaChave] = {
+        produtoId: produto.id,
+        nome: produto.nome,
+        preco: produto.preco,
+        opcao,
+        quantidade: (copia[novaChave]?.quantidade ?? 0) + quantidade,
+        observacao,
+      };
       return copia;
     });
   }
@@ -506,7 +555,7 @@ export function LojaPublica() {
         />
       )}
 
-      {itensCarrinho.length > 0 && resumoAberto && (
+      {resumoAberto && (
         <ResumoPedido
           itens={itensCarrinho}
           total={total}
@@ -518,6 +567,7 @@ export function LojaPublica() {
           aoFechar={() => setResumoAberto(false)}
           finalizando={finalizando}
           removerItem={removerItem}
+          editarItem={abrirEdicaoItem}
           bairros={loja.bairrosEntrega}
           formaRecebimento={formaRecebimento}
           aoMudarFormaRecebimento={setFormaRecebimento}
@@ -552,6 +602,22 @@ export function LojaPublica() {
           produto={produtoModalAberto}
           aoFechar={() => setProdutoModalAberto(null)}
           aoAdicionar={adicionarAoCarrinho}
+        />
+      )}
+
+      {itemEditando && (
+        <ModalProduto
+          produto={itemEditando.produto}
+          aoFechar={() => setItemEditando(null)}
+          aoAdicionar={(produto, opcao, quantidade, observacao) =>
+            salvarEdicaoItem(itemEditando.chave, produto, opcao, quantidade, observacao)
+          }
+          valoresIniciais={{
+            opcao: carrinho[itemEditando.chave]?.opcao ?? null,
+            quantidade: carrinho[itemEditando.chave]?.quantidade ?? 1,
+            observacao: carrinho[itemEditando.chave]?.observacao ?? null,
+          }}
+          modoEdicao
         />
       )}
 
