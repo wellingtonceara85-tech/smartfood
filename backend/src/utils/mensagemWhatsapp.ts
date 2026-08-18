@@ -34,6 +34,7 @@ interface PedidoMensagem {
   tipoCartao: string | null;
   chavePix: string | null;
   linkAcompanhamento: string;
+  agendamentoFormatado?: string | null;
 }
 
 const moeda = (valor: number) => `R$ ${valor.toFixed(2).replace('.', ',')}`;
@@ -62,6 +63,10 @@ export function montarMensagemPedido(
     `Código do pedido: #${pedido.numero}`,
     '',
   ];
+
+  if (pedido.agendamentoFormatado) {
+    linhas.push(`📅 Encomenda agendada para ${pedido.agendamentoFormatado}`, '');
+  }
 
   for (const item of itens) {
     const descricaoOpcao = item.opcao ? ` (${item.opcao})` : '';

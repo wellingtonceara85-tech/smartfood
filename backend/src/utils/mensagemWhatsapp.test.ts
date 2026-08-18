@@ -136,3 +136,30 @@ test('taxa de entrega grátis aparece como "Grátis" em vez de R$ 0,00', () => {
   assert.match(mensagem, /Entrega - Centro \(Grátis\)/);
   assert.doesNotMatch(mensagem, /R\$ 0,00/);
 });
+
+test('mensagem de pedido agendado destaca a data/hora da encomenda', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    itensBase,
+    22.9,
+    { forma: 'retirada' },
+    {
+      ...pedidoBase,
+      agendamentoFormatado: '30/08/2026 às 17:00',
+    },
+  );
+
+  assert.match(mensagem, /📅 Encomenda agendada para 30\/08\/2026 às 17:00/);
+});
+
+test('mensagem de pedido imediato não menciona agendamento', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    itensBase,
+    22.9,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.doesNotMatch(mensagem, /Encomenda agendada/);
+});

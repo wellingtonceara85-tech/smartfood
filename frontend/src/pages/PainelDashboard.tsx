@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -48,6 +49,7 @@ export function PainelDashboard() {
   const [periodoAtivo, setPeriodoAtivo] = useState<'hoje' | '7dias' | 'mes' | 'custom'>('hoje');
   const [resumo, setResumo] = useState<DashboardResumo | null>(null);
   const [pedidosEmPreparo, setPedidosEmPreparo] = useState<number | null>(null);
+  const [encomendasProximas, setEncomendasProximas] = useState<number | null>(null);
   const [totalProdutos, setTotalProdutos] = useState<number | null>(null);
   const [carregando, setCarregando] = useState(true);
 
@@ -63,6 +65,18 @@ export function PainelDashboard() {
   useEffect(() => {
     api<PedidoAdmin[]>('/api/admin/pedidos', { autenticado: true }).then((pedidos) => {
       setPedidosEmPreparo(pedidos.filter((p) => p.status === 'em_preparo').length);
+
+      const agora = Date.now();
+      const em7Dias = agora + 7 * 24 * 60 * 60 * 1000;
+      setEncomendasProximas(
+        pedidos.filter((p) => {
+          if (p.tipoPedido !== 'agendado' || p.status === 'finalizado' || !p.dataAgendamento) {
+            return false;
+          }
+          const dataAgendamento = new Date(p.dataAgendamento).getTime();
+          return dataAgendamento >= agora && dataAgendamento <= em7Dias;
+        }).length,
+      );
     });
     api<Produto[]>('/api/admin/produtos', { autenticado: true }).then((produtos) => {
       setTotalProdutos(produtos.length);
@@ -152,6 +166,23 @@ export function PainelDashboard() {
               valor={totalProdutos === null ? '—' : String(totalProdutos)}
             />
           </div>
+
+          {!!encomendasProximas && encomendasProximas > 0 && (
+            <Link
+              to="/painel/pedidos"
+              className="flex items-center justify-between gap-3 rounded-card bg-secondary-light px-4 py-3 text-secondary-hover shadow-card transition-colors hover:opacity-90"
+            >
+              <span className="flex items-center gap-2 text-sm font-medium">
+                <span aria-hidden="true">📅</span>
+                {encomendasProximas}{' '}
+                {encomendasProximas === 1 ? 'encomenda agendada' : 'encomendas agendadas'} nos
+                próximos 7 dias
+              </span>
+              <span className="text-sm font-semibold underline underline-offset-2">
+                Ver pedidos
+              </span>
+            </Link>
+          )}
 
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <Card>

@@ -9,15 +9,17 @@ interface LojaHorario {
 // Date.getHours() aqui: em produção o processo roda em UTC (Cloud
 // Functions), então precisamos converter o instante pro fuso da loja em vez
 // de confiar no fuso local do processo.
-const FUSO_LOJA = 'America/Fortaleza';
+export const FUSO_LOJA = 'America/Fortaleza';
+/** Offset fixo de FUSO_LOJA em relação ao UTC, em minutos (UTC-3 => -180). */
+export const OFFSET_MINUTOS_FUSO_LOJA = -180;
 
 /** "HH:mm" -> minutos desde 00:00 */
-function paraMinutos(hora: string): number {
+export function paraMinutos(hora: string): number {
   const [h, m] = hora.split(':').map(Number);
   return h * 60 + m;
 }
 
-function minutosDoDiaNoFuso(data: Date, timeZone: string): number {
+export function minutosDoDiaNoFuso(data: Date, timeZone: string = FUSO_LOJA): number {
   const partes = new Intl.DateTimeFormat('en-US', {
     timeZone,
     hour: 'numeric',

@@ -110,7 +110,19 @@ export function ModalProduto({
           >
             -
           </button>
-          <span className="w-5 text-center font-medium">{quantidade}</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={1}
+            value={quantidade}
+            onChange={(e) => {
+              const valor = Math.floor(Number(e.target.value));
+              setQuantidade(Number.isFinite(valor) && valor >= 1 ? valor : 1);
+            }}
+            onFocus={(e) => e.target.select()}
+            aria-label="Quantidade"
+            className="w-16 rounded-lg border border-gray-300 px-1 py-1.5 text-center font-medium focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          />
           <button
             type="button"
             onClick={() => setQuantidade((q) => q + 1)}

@@ -6,6 +6,19 @@ import { api } from '../lib/api';
 import { ORDEM_STATUS_CLIENTE, rotuloStatus } from '../lib/statusPedido';
 import { PedidoAcompanhamento } from '../types';
 
+function formatarDataAgendamento(iso: string): string {
+  const partes = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const valor = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? '';
+  return `${valor('day')}/${valor('month')}/${valor('year')} às ${valor('hour')}:${valor('minute')}`;
+}
+
 export function AcompanharPedido() {
   const { slug, pedidoId } = useParams<{ slug: string; pedidoId: string }>();
   const [pedido, setPedido] = useState<PedidoAcompanhamento | null>(null);
@@ -54,6 +67,13 @@ export function AcompanharPedido() {
         )}
         <p className="text-sm text-gray-500">{pedido.loja.nome}</p>
         <h1 className="text-xl font-bold text-gray-800">Pedido #{pedido.numero}</h1>
+
+        {pedido.tipoPedido === 'agendado' && pedido.dataAgendamento && (
+          <div className="mt-3 rounded-lg bg-secondary-light px-3 py-2.5 text-sm text-secondary-hover">
+            <p className="font-semibold">📅 Encomenda agendada</p>
+            <p>{formatarDataAgendamento(pedido.dataAgendamento)}</p>
+          </div>
+        )}
 
         <div className="my-6 flex items-center justify-between">
           {ORDEM_STATUS_CLIENTE.map((status, i) => (

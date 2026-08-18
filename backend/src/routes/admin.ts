@@ -68,6 +68,8 @@ const atualizarLojaSchema = z.object({
   abertoManual: z.boolean().nullable().optional(),
   corPrimaria: corHexSchema.optional(),
   corSecundaria: corHexSchema.optional(),
+  aceitaAgendamento: z.boolean().optional(),
+  antecedenciaMinimaMinutos: z.number().int().nonnegative().optional(),
 });
 
 adminRouter.put('/loja', async (req, res) => {

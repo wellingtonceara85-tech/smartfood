@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import {
+  agendamentoPareceValido,
+  dataMinimaAgendamento,
+  formatarAntecedencia,
+} from '../lib/agendamento';
+import {
   cepValido,
   EnderecoEntrega,
   formatarEnderecoResumo,
@@ -9,7 +14,7 @@ import {
   telefoneValido,
   UFS_BRASIL,
 } from '../lib/endereco';
-import { BairroEntrega, FormaPagamento, ItemCarrinho } from '../types';
+import { BairroEntrega, FormaPagamento, ItemCarrinho, TipoPedido } from '../types';
 import { Button } from './ui/Button';
 import { EmptyState } from './ui/EmptyState';
 import { Input } from './ui/Input';
@@ -33,6 +38,14 @@ interface Props {
   bairroSelecionadoId: string | null;
   aoMudarBairro: (id: string | null) => void;
   taxaEntrega: number;
+  aceitaAgendamento: boolean;
+  antecedenciaMinimaMinutos: number;
+  tipoPedido: TipoPedido;
+  aoMudarTipoPedido: (tipo: TipoPedido) => void;
+  dataAgendamento: string;
+  aoMudarDataAgendamento: (valor: string) => void;
+  horaAgendamento: string;
+  aoMudarHoraAgendamento: (valor: string) => void;
   chavePix: string | null;
   formaPagamento: FormaPagamento;
   aoMudarFormaPagamento: (forma: FormaPagamento) => void;
@@ -80,6 +93,14 @@ export function ResumoPedido({
   bairroSelecionadoId,
   aoMudarBairro,
   taxaEntrega,
+  aceitaAgendamento,
+  antecedenciaMinimaMinutos,
+  tipoPedido,
+  aoMudarTipoPedido,
+  dataAgendamento,
+  aoMudarDataAgendamento,
+  horaAgendamento,
+  aoMudarHoraAgendamento,
   chavePix,
   formaPagamento,
   aoMudarFormaPagamento,
@@ -117,6 +138,9 @@ export function ResumoPedido({
     precisaTroco &&
     (!trocoPara.trim() || Number(trocoPara.replace(',', '.')) <= total);
   const cartaoSemTipo = formaPagamento === 'cartao' && !tipoCartao;
+  const agendamentoInvalido =
+    tipoPedido === 'agendado' &&
+    !agendamentoPareceValido(dataAgendamento, horaAgendamento, antecedenciaMinimaMinutos);
   const nomeInvalido = tentouEnviar && !nome.trim();
   const telefoneInvalido = tentouEnviar && !telefoneValido(telefone);
   const mostrarErrosEndereco =
@@ -247,6 +271,69 @@ export function ResumoPedido({
                   );
                 })}
               </ul>
+
+              {aceitaAgendamento && (
+                <div className="mb-3">
+                  <p className={RUBRICA}>Quando você deseja seu pedido?</p>
+                  <div className="flex overflow-hidden rounded-lg border border-gray-300">
+                    <button
+                      type="button"
+                      onClick={() => aoMudarTipoPedido('imediato')}
+                      className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors ${
+                        tipoPedido === 'imediato' ? SEGMENTO_ATIVO : SEGMENTO_INATIVO
+                      }`}
+                    >
+                      Para agora
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => aoMudarTipoPedido('agendado')}
+                      className={`flex-1 px-3 py-1.5 text-sm font-medium transition-colors ${
+                        tipoPedido === 'agendado' ? SEGMENTO_ATIVO : SEGMENTO_INATIVO
+                      }`}
+                    >
+                      Agendar pedido
+                    </button>
+                  </div>
+
+                  {tipoPedido === 'agendado' && (
+                    <div className="mt-2 flex flex-col gap-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          value={dataAgendamento}
+                          min={dataMinimaAgendamento(antecedenciaMinimaMinutos)}
+                          onChange={(e) => aoMudarDataAgendamento(e.target.value)}
+                          className={`rounded-lg border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${
+                            agendamentoInvalido && tentouEnviar
+                              ? 'border-red-400'
+                              : 'border-gray-300'
+                          }`}
+                        />
+                        <input
+                          type="time"
+                          value={horaAgendamento}
+                          onChange={(e) => aoMudarHoraAgendamento(e.target.value)}
+                          className={`rounded-lg border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary ${
+                            agendamentoInvalido && tentouEnviar
+                              ? 'border-red-400'
+                              : 'border-gray-300'
+                          }`}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Esta loja recebe encomendas com pelo menos{' '}
+                        {formatarAntecedencia(antecedenciaMinimaMinutos)} de antecedência.
+                      </p>
+                      {agendamentoInvalido && tentouEnviar && (
+                        <p className={ERRO_CAMPO}>
+                          Escolha uma data e horário válidos, respeitando a antecedência mínima.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {bairros.length > 0 && (
                 <div className="mb-3">
@@ -597,7 +684,8 @@ export function ResumoPedido({
                     finalizando ||
                     entregaSemBairroEscolhido ||
                     trocoInvalido ||
-                    cartaoSemTipo
+                    cartaoSemTipo ||
+                    agendamentoInvalido
                   }
                   onClick={aoFinalizar}
                 >

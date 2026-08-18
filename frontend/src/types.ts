@@ -36,6 +36,8 @@ export interface LojaPublica {
   aberto: boolean;
   horarioAbertura: string | null;
   horarioFechamento: string | null;
+  aceitaAgendamento: boolean;
+  antecedenciaMinimaMinutos: number;
   corPrimaria: string;
   corSecundaria: string;
   categorias: Categoria[];
@@ -57,6 +59,8 @@ export interface Loja {
   abertoManual: boolean | null;
   corPrimaria: string;
   corSecundaria: string;
+  aceitaAgendamento: boolean;
+  antecedenciaMinimaMinutos: number;
 }
 
 export interface ItemCarrinho {
@@ -88,6 +92,7 @@ export interface LojaAdmin {
 
 export type StatusPedido = 'recebido' | 'em_preparo' | 'pronto' | 'entregue' | 'finalizado';
 export type FormaPagamento = 'dinheiro' | 'cartao' | 'pix';
+export type TipoPedido = 'imediato' | 'agendado';
 
 /** Formato em que os itens ficam gravados dentro de um pedido já criado (Pedido.itens no backend) — diferente de ItemCarrinho. */
 export interface ItemPedidoRegistrado {
@@ -140,6 +145,8 @@ export interface PedidoAdmin extends EnderecoEntregaPedido {
   trocoPara: number | null;
   tipoCartao: 'debito' | 'credito' | null;
   status: StatusPedido;
+  tipoPedido: TipoPedido;
+  dataAgendamento: string | null;
   total: number;
   criadoEm: string;
 }
@@ -153,6 +160,8 @@ export interface PedidoAcompanhamento {
   bairroEntregaNome: string | null;
   total: number;
   criadoEm: string;
+  tipoPedido: TipoPedido;
+  dataAgendamento: string | null;
   loja: { nome: string };
 }
 

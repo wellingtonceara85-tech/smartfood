@@ -26,21 +26,23 @@ model Usuario {
 }
 
 model Loja {
-  id                String   @id @default(uuid())
-  nome              String
-  slug              String   @unique
-  telefoneWhatsapp  String   @map("telefone_whatsapp")
-  logoUrl           String?  @map("logo_url")
-  capaUrl           String?  @map("capa_url")
-  tagline           String?
-  endereco          String?
-  chavePix          String?  @map("chave_pix")
-  horarioAbertura   String?  @map("horario_abertura")
-  horarioFechamento String?  @map("horario_fechamento")
-  abertoManual      Boolean? @map("aberto_manual")
-  corPrimaria       String   @default("#16A34A") @map("cor_primaria")
-  corSecundaria     String   @default("#15803D") @map("cor_secundaria")
-  criadoEm          DateTime @default(now()) @map("criado_em")
+  id                        String   @id @default(uuid())
+  nome                      String
+  slug                      String   @unique
+  telefoneWhatsapp          String   @map("telefone_whatsapp")
+  logoUrl                   String?  @map("logo_url")
+  capaUrl                   String?  @map("capa_url")
+  tagline                   String?
+  endereco                  String?
+  chavePix                  String?  @map("chave_pix")
+  horarioAbertura           String?  @map("horario_abertura")
+  horarioFechamento         String?  @map("horario_fechamento")
+  abertoManual              Boolean? @map("aberto_manual")
+  corPrimaria               String   @default("#16A34A") @map("cor_primaria")
+  corSecundaria             String   @default("#15803D") @map("cor_secundaria")
+  aceitaAgendamento         Boolean  @default(false) @map("aceita_agendamento")
+  antecedenciaMinimaMinutos Int      @default(0) @map("antecedencia_minima_minutos")
+  criadoEm                  DateTime @default(now()) @map("criado_em")
 
   usuarios       Usuario[]
   categorias     Categoria[]
@@ -81,32 +83,34 @@ model Produto {
 }
 
 model Pedido {
-  id                 String   @id @default(uuid())
-  lojaId             String   @map("loja_id")
-  loja               Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
-  numero             Int      @default(0)
-  clienteNome        String   @default("") @map("cliente_nome")
-  clienteTelefone    String   @map("cliente_telefone")
+  id                 String    @id @default(uuid())
+  lojaId             String    @map("loja_id")
+  loja               Loja      @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  numero             Int       @default(0)
+  clienteNome        String    @default("") @map("cliente_nome")
+  clienteTelefone    String    @map("cliente_telefone")
   itens              Json
-  formaRecebimento   String   @default("retirada") @map("forma_recebimento")
-  bairroEntregaId    String?  @map("bairro_entrega_id")
-  bairroEntregaNome  String?  @map("bairro_entrega_nome")
-  valorEntrega       Decimal  @default(0) @db.Decimal(10, 2) @map("valor_entrega")
-  formaPagamento     String   @default("nao_informado") @map("forma_pagamento")
-  precisaTroco       Boolean? @map("precisa_troco")
-  trocoPara          Decimal? @db.Decimal(10, 2) @map("troco_para")
-  tipoCartao         String?  @map("tipo_cartao")
-  entregaCep         String?  @map("entrega_cep")
-  entregaLogradouro  String?  @map("entrega_logradouro")
-  entregaNumero      String?  @map("entrega_numero")
-  entregaComplemento String?  @map("entrega_complemento")
-  entregaBairro      String?  @map("entrega_bairro")
-  entregaCidade      String?  @map("entrega_cidade")
-  entregaEstado      String?  @map("entrega_estado")
-  entregaReferencia  String?  @map("entrega_referencia")
-  status             String   @default("recebido")
-  total              Decimal  @db.Decimal(10, 2)
-  criadoEm           DateTime @default(now()) @map("criado_em")
+  formaRecebimento   String    @default("retirada") @map("forma_recebimento")
+  bairroEntregaId    String?   @map("bairro_entrega_id")
+  bairroEntregaNome  String?   @map("bairro_entrega_nome")
+  valorEntrega       Decimal   @default(0) @map("valor_entrega") @db.Decimal(10, 2)
+  formaPagamento     String    @default("nao_informado") @map("forma_pagamento")
+  precisaTroco       Boolean?  @map("precisa_troco")
+  trocoPara          Decimal?  @map("troco_para") @db.Decimal(10, 2)
+  tipoCartao         String?   @map("tipo_cartao")
+  entregaCep         String?   @map("entrega_cep")
+  entregaLogradouro  String?   @map("entrega_logradouro")
+  entregaNumero      String?   @map("entrega_numero")
+  entregaComplemento String?   @map("entrega_complemento")
+  entregaBairro      String?   @map("entrega_bairro")
+  entregaCidade      String?   @map("entrega_cidade")
+  entregaEstado      String?   @map("entrega_estado")
+  entregaReferencia  String?   @map("entrega_referencia")
+  status             String    @default("recebido")
+  tipoPedido         String    @default("imediato") @map("tipo_pedido")
+  dataAgendamento    DateTime? @map("data_agendamento")
+  total              Decimal   @db.Decimal(10, 2)
+  criadoEm           DateTime  @default(now()) @map("criado_em")
 
   @@map("pedidos")
 }
@@ -116,7 +120,7 @@ model BairroEntrega {
   lojaId       String   @map("loja_id")
   loja         Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
   nomeBairro   String   @map("nome_bairro")
-  valorEntrega Decimal  @db.Decimal(10, 2) @map("valor_entrega")
+  valorEntrega Decimal  @map("valor_entrega") @db.Decimal(10, 2)
   ativo        Boolean  @default(true)
   criadoEm     DateTime @default(now()) @map("criado_em")
 

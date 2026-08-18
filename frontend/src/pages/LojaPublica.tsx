@@ -6,6 +6,7 @@ import { CardEntregaTopo } from '../components/CardEntregaTopo';
 import { CardProduto } from '../components/CardProduto';
 import { ModalProduto } from '../components/ModalProduto';
 import { ResumoPedido } from '../components/ResumoPedido';
+import { agendamentoPareceValido } from '../lib/agendamento';
 import { api } from '../lib/api';
 import { montarVariaveisTema } from '../lib/cor';
 import { cepValido, EnderecoEntrega, telefoneValido } from '../lib/endereco';
@@ -15,6 +16,7 @@ import {
   LojaPublica as LojaPublicaTipo,
   PedidoAnterior,
   Produto,
+  TipoPedido,
 } from '../types';
 
 const ENDERECO_VAZIO: EnderecoEntrega = {
@@ -65,6 +67,9 @@ export function LojaPublica() {
   const [precisaTroco, setPrecisaTroco] = useState(false);
   const [trocoPara, setTrocoPara] = useState('');
   const [tipoCartao, setTipoCartao] = useState<'debito' | 'credito' | null>(null);
+  const [tipoPedido, setTipoPedido] = useState<TipoPedido>('imediato');
+  const [dataAgendamento, setDataAgendamento] = useState('');
+  const [horaAgendamento, setHoraAgendamento] = useState('');
   const [pedidoAnterior, setPedidoAnterior] = useState<PedidoAnterior | null>(null);
   const [finalizando, setFinalizando] = useState(false);
   const [erroPedido, setErroPedido] = useState<string | null>(null);
@@ -354,6 +359,13 @@ export function LojaPublica() {
     if (formaRecebimento === 'entrega' && !enderecoValido) return;
     if (formaPagamento === 'cartao' && !tipoCartao) return;
     if (formaPagamento === 'dinheiro' && precisaTroco && !trocoPara.trim()) return;
+    if (
+      loja?.aceitaAgendamento &&
+      tipoPedido === 'agendado' &&
+      !agendamentoPareceValido(dataAgendamento, horaAgendamento, loja.antecedenciaMinimaMinutos)
+    ) {
+      return;
+    }
     setFinalizando(true);
     setErroPedido(null);
 
@@ -384,6 +396,11 @@ export function LojaPublica() {
               ? Number(trocoPara.replace(',', '.'))
               : null,
           tipoCartao: formaPagamento === 'cartao' ? tipoCartao : null,
+          tipoPedido: loja?.aceitaAgendamento ? tipoPedido : 'imediato',
+          dataAgendamentoData:
+            loja?.aceitaAgendamento && tipoPedido === 'agendado' ? dataAgendamento : null,
+          dataAgendamentoHora:
+            loja?.aceitaAgendamento && tipoPedido === 'agendado' ? horaAgendamento : null,
         },
       });
       if (abaWhatsapp) {
@@ -402,6 +419,9 @@ export function LojaPublica() {
       setCarrinho({});
       setResumoAberto(false);
       setTentouEnviar(false);
+      setTipoPedido('imediato');
+      setDataAgendamento('');
+      setHoraAgendamento('');
     } catch (e) {
       abaWhatsapp?.close();
       setErroPedido(e instanceof Error ? e.message : 'Não foi possível finalizar o pedido');
@@ -574,6 +594,14 @@ export function LojaPublica() {
           bairroSelecionadoId={bairroSelecionadoId}
           aoMudarBairro={mudarBairroSelecionado}
           taxaEntrega={taxaEntrega}
+          aceitaAgendamento={loja.aceitaAgendamento}
+          antecedenciaMinimaMinutos={loja.antecedenciaMinimaMinutos}
+          tipoPedido={tipoPedido}
+          aoMudarTipoPedido={setTipoPedido}
+          dataAgendamento={dataAgendamento}
+          aoMudarDataAgendamento={setDataAgendamento}
+          horaAgendamento={horaAgendamento}
+          aoMudarHoraAgendamento={setHoraAgendamento}
           chavePix={loja.chavePix}
           formaPagamento={formaPagamento}
           aoMudarFormaPagamento={setFormaPagamento}

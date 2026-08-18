@@ -31,6 +31,8 @@ export function PainelLoja() {
   const [modalAberto, setModalAberto] = useState<'logo' | 'capa' | null>(null);
   const [corPrimariaTexto, setCorPrimariaTexto] = useState('');
   const [corSecundariaTexto, setCorSecundariaTexto] = useState('');
+  const [antecedenciaValor, setAntecedenciaValor] = useState(0);
+  const [antecedenciaUnidade, setAntecedenciaUnidade] = useState<'minutos' | 'horas'>('horas');
 
   const inputLogoRef = useRef<HTMLInputElement>(null);
   const inputCapaRef = useRef<HTMLInputElement>(null);
@@ -43,6 +45,14 @@ export function PainelLoja() {
     if (loja) {
       setCorPrimariaTexto(loja.corPrimaria);
       setCorSecundariaTexto(loja.corSecundaria);
+      const minutos = loja.antecedenciaMinimaMinutos;
+      if (minutos > 0 && minutos % 60 === 0) {
+        setAntecedenciaValor(minutos / 60);
+        setAntecedenciaUnidade('horas');
+      } else {
+        setAntecedenciaValor(minutos);
+        setAntecedenciaUnidade('minutos');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaCarregada]);
@@ -75,6 +85,8 @@ export function PainelLoja() {
           abertoManual: loja.abertoManual,
           corPrimaria: loja.corPrimaria,
           corSecundaria: loja.corSecundaria,
+          aceitaAgendamento: loja.aceitaAgendamento,
+          antecedenciaMinimaMinutos: loja.antecedenciaMinimaMinutos,
         },
       });
       setLoja(atualizada);
@@ -151,6 +163,20 @@ export function PainelLoja() {
     setLoja({ ...loja, corPrimaria: paleta.primaria, corSecundaria: paleta.secundaria });
     setCorPrimariaTexto(paleta.primaria);
     setCorSecundariaTexto(paleta.secundaria);
+  }
+
+  function aoMudarAntecedenciaValor(valor: number) {
+    setAntecedenciaValor(valor);
+    if (!loja) return;
+    const minutos = antecedenciaUnidade === 'horas' ? valor * 60 : valor;
+    setLoja({ ...loja, antecedenciaMinimaMinutos: minutos });
+  }
+
+  function aoMudarAntecedenciaUnidade(unidade: 'minutos' | 'horas') {
+    setAntecedenciaUnidade(unidade);
+    if (!loja) return;
+    const minutos = unidade === 'horas' ? antecedenciaValor * 60 : antecedenciaValor;
+    setLoja({ ...loja, antecedenciaMinimaMinutos: minutos });
   }
 
   function restaurarPadrao() {
@@ -296,6 +322,47 @@ export function PainelLoja() {
           <option value="aberto">Forçar aberto</option>
           <option value="fechado">Forçar fechado</option>
         </Select>
+
+        <div className="mt-2 border-t pt-4">
+          <h3 className="text-base font-semibold text-gray-800">Pedidos agendados / Encomendas</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Permite que o cliente escolha uma data e horário futuros pra retirada/entrega — útil pra
+            encomendas de festas, aniversários e eventos.
+          </p>
+
+          <label className="mt-3 flex items-center gap-1.5 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={loja.aceitaAgendamento}
+              onChange={(e) => setLoja({ ...loja, aceitaAgendamento: e.target.checked })}
+              className="h-4 w-4 accent-primary"
+            />
+            Aceitar pedidos agendados
+          </label>
+
+          {loja.aceitaAgendamento && (
+            <div className="mt-3 flex items-end gap-2">
+              <div>
+                <label className={LABEL}>Antecedência mínima</label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={antecedenciaValor}
+                  onChange={(e) => aoMudarAntecedenciaValor(Math.max(0, Number(e.target.value)))}
+                  className="w-24"
+                />
+              </div>
+              <Select
+                value={antecedenciaUnidade}
+                onChange={(e) => aoMudarAntecedenciaUnidade(e.target.value as 'minutos' | 'horas')}
+                className="w-32"
+              >
+                <option value="minutos">minutos</option>
+                <option value="horas">horas</option>
+              </Select>
+            </div>
+          )}
+        </div>
 
         <div className="mt-2 border-t pt-4">
           <h3 className="text-base font-semibold text-gray-800">Identidade visual</h3>

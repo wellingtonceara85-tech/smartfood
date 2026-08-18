@@ -3,6 +3,11 @@ import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env } from '../env';
 import { prisma } from '../prisma';
+import {
+  combinarDataHoraLocalParaUtc,
+  formatarDataHoraLocal,
+  validarAgendamento,
+} from '../utils/agendamento';
 import { COR_PRIMARIA_PADRAO, COR_SECUNDARIA_PADRAO, corOuPadrao } from '../utils/cor';
 import {
   EnderecoEntregaNormalizado,
@@ -60,6 +65,8 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     aberto: calcularAberto(loja),
     horarioAbertura: loja.horarioAbertura,
     horarioFechamento: loja.horarioFechamento,
+    aceitaAgendamento: loja.aceitaAgendamento,
+    antecedenciaMinimaMinutos: loja.antecedenciaMinimaMinutos,
     corPrimaria: corOuPadrao(loja.corPrimaria, COR_PRIMARIA_PADRAO),
     corSecundaria: corOuPadrao(loja.corSecundaria, COR_SECUNDARIA_PADRAO),
     bairrosEntrega: loja.bairrosEntrega.map((bairro) => ({
@@ -131,6 +138,8 @@ publicRouter.get('/lojas/:slug/pedidos/:id', async (req, res) => {
     bairroEntregaNome: pedido.bairroEntregaNome,
     total: Number(pedido.total),
     criadoEm: pedido.criadoEm,
+    tipoPedido: pedido.tipoPedido,
+    dataAgendamento: pedido.dataAgendamento,
     loja: { nome: loja.nome },
   });
 });
@@ -171,6 +180,17 @@ const criarPedidoSchema = z.object({
   precisaTroco: z.boolean().nullable().optional(),
   trocoPara: z.number().positive().nullable().optional(),
   tipoCartao: z.enum(['debito', 'credito']).nullable().optional(),
+  tipoPedido: z.enum(['imediato', 'agendado']).default('imediato'),
+  dataAgendamentoData: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  dataAgendamentoHora: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/)
+    .nullable()
+    .optional(),
 });
 
 publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
@@ -182,6 +202,21 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
   const loja = await prisma.loja.findUnique({ where: { slug: req.params.slug } });
   if (!loja) {
     return res.status(404).json({ erro: 'Loja não encontrada' });
+  }
+
+  let dataAgendamentoUtc: Date | null = null;
+  if (parsed.data.tipoPedido === 'agendado') {
+    dataAgendamentoUtc = combinarDataHoraLocalParaUtc(
+      parsed.data.dataAgendamentoData ?? '',
+      parsed.data.dataAgendamentoHora ?? '',
+    );
+    if (!dataAgendamentoUtc) {
+      return res.status(400).json({ erro: 'Informe data e horário válidos para o agendamento' });
+    }
+    const resultado = validarAgendamento(loja, dataAgendamentoUtc);
+    if (!resultado.valido) {
+      return res.status(400).json({ erro: resultado.erro });
+    }
   }
 
   const produtoIds = parsed.data.itens.map((item) => item.produtoId);
@@ -300,6 +335,8 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       entregaCidade: enderecoValidado?.cidade ?? null,
       entregaEstado: enderecoValidado?.estado ?? null,
       entregaReferencia: enderecoValidado?.referencia ?? null,
+      tipoPedido: parsed.data.tipoPedido,
+      dataAgendamento: dataAgendamentoUtc,
       total,
     },
   });
@@ -325,6 +362,7 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       tipoCartao: parsed.data.tipoCartao ?? null,
       chavePix: loja.chavePix,
       linkAcompanhamento,
+      agendamentoFormatado: dataAgendamentoUtc ? formatarDataHoraLocal(dataAgendamentoUtc) : null,
     },
   );
   const linkWhatsapp = `https://wa.me/${loja.telefoneWhatsapp}?text=${encodeURIComponent(mensagem)}`;
