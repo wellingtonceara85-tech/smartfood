@@ -23,6 +23,14 @@ authRouter.post('/login', async (req, res) => {
     return res.status(401).json({ erro: 'Credenciais inválidas' });
   }
 
+  // Usuário criado pelo Admin Master mas que ainda não ativou a conta —
+  // não tem senha pra comparar (nunca existiu texto puro nem hash provisório).
+  if (!usuario.senhaHash) {
+    return res.status(401).json({
+      erro: 'Conta aguardando ativação. Use o link de ativação enviado para definir sua senha.',
+    });
+  }
+
   const senhaValida = await bcrypt.compare(senha, usuario.senhaHash);
   if (!senhaValida) {
     return res.status(401).json({ erro: 'Credenciais inválidas' });

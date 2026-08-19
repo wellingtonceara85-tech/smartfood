@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
@@ -8,6 +9,7 @@ import {
   formatarDataHoraLocal,
   validarAgendamento,
 } from '../utils/agendamento';
+import { conviteValido, hashToken } from '../utils/convite';
 import { COR_PRIMARIA_PADRAO, COR_SECUNDARIA_PADRAO, corOuPadrao } from '../utils/cor';
 import {
   EnderecoEntregaNormalizado,
@@ -15,6 +17,7 @@ import {
   validarEnderecoEntrega,
 } from '../utils/endereco';
 import { calcularAberto } from '../utils/horario';
+import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
 import { projetarPedidoAnteriorPublico } from '../utils/pedidoPublico';
 
@@ -368,4 +371,85 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
   const linkWhatsapp = `https://wa.me/${loja.telefoneWhatsapp}?text=${encodeURIComponent(mensagem)}`;
 
   res.status(201).json({ pedido, mensagem, linkWhatsapp });
+});
+
+// --- Ativação de conta do dono da loja ---
+//
+// Rota pública (sem autenticação): o próprio token de convite, de uso único
+// e alta entropia, é a prova de autorização — o Admin Master nunca vê nem
+// define a senha do lojista (ver adminMaster.ts).
+
+publicRouter.get('/ativacao/:token', async (req, res) => {
+  const tokenHash = hashToken(req.params.token);
+  const convite = await prisma.conviteAtivacao.findUnique({
+    where: { tokenHash },
+    include: { usuario: { include: { loja: true } } },
+  });
+
+  if (!convite || !conviteValido(convite)) {
+    return res.status(400).json({ erro: 'Link de ativação inválido, expirado ou já utilizado.' });
+  }
+
+  res.json({
+    nome: convite.usuario.nome,
+    email: convite.usuario.email,
+    lojaNome: convite.usuario.loja?.nome ?? null,
+  });
+});
+
+const ativarContaSchema = z
+  .object({
+    senha: z.string().min(6, 'A senha precisa ter pelo menos 6 caracteres'),
+    confirmarSenha: z.string().min(1),
+  })
+  .refine((dados) => dados.senha === dados.confirmarSenha, {
+    message: 'As senhas não conferem',
+    path: ['confirmarSenha'],
+  });
+
+publicRouter.post('/ativacao/:token', async (req, res) => {
+  const parsed = ativarContaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+  }
+
+  const tokenHash = hashToken(req.params.token);
+  const convite = await prisma.conviteAtivacao.findUnique({
+    where: { tokenHash },
+    include: { usuario: true },
+  });
+
+  if (!convite || !conviteValido(convite)) {
+    return res.status(400).json({ erro: 'Link de ativação inválido, expirado ou já utilizado.' });
+  }
+
+  const senhaHash = await bcrypt.hash(parsed.data.senha, 10);
+
+  await prisma.$transaction([
+    prisma.usuario.update({ where: { id: convite.usuarioId }, data: { senhaHash } }),
+    prisma.conviteAtivacao.update({
+      where: { id: convite.id },
+      data: { usadoEm: new Date() },
+    }),
+  ]);
+
+  // Ativação já deixa o lojista logado — evita um passo extra de login
+  // logo após definir a senha, reaproveitando o mesmo formato de resposta
+  // de /api/auth/login.
+  const payload = {
+    sub: convite.usuario.id,
+    papel: convite.usuario.papel,
+    lojaId: convite.usuario.lojaId,
+  };
+  res.json({
+    accessToken: signAccessToken(payload),
+    refreshToken: signRefreshToken(payload),
+    usuario: {
+      id: convite.usuario.id,
+      nome: convite.usuario.nome,
+      email: convite.usuario.email,
+      papel: convite.usuario.papel,
+      lojaId: convite.usuario.lojaId,
+    },
+  });
 });

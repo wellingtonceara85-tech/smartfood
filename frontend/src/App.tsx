@@ -4,6 +4,7 @@ import { RotaProtegida } from './components/RotaProtegida';
 import { useAuth } from './context/AuthContext';
 import { AcompanharPedido } from './pages/AcompanharPedido';
 import { AdminLojas } from './pages/AdminLojas';
+import { AtivarConta } from './pages/AtivarConta';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { LojaPublica } from './pages/LojaPublica';
@@ -41,6 +42,8 @@ export function App() {
       <Route element={<RotaAdminMaster />}>
         <Route path="/admin/lojas" element={<AdminLojas />} />
       </Route>
+
+      <Route path="/ativar-conta" element={<AtivarConta />} />
 
       <Route path="/:slug/pedido/:pedidoId" element={<AcompanharPedido />} />
       <Route path="/:slug" element={<LojaPublica />} />

@@ -6,6 +6,7 @@ interface AuthContextValue {
   usuario: Usuario | null;
   carregando: boolean;
   login: (email: string, senha: string) => Promise<Usuario>;
+  entrarComSessao: (accessToken: string, refreshToken: string, usuario: Usuario) => void;
   logout: () => void;
 }
 
@@ -37,6 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Usado pela tela de ativação de conta: a API de ativação já devolve a
+  // sessão pronta (mesmo formato de /api/auth/login), então só precisa
+  // gravar localmente — sem chamar o endpoint de login de novo.
+  function entrarComSessao(accessToken: string, refreshToken: string, usuarioLogado: Usuario) {
+    salvarTokens(accessToken, refreshToken);
+    localStorage.setItem('smartfood_usuario', JSON.stringify(usuarioLogado));
+    setUsuario(usuarioLogado);
+  }
+
   function logout() {
     limparTokens();
     localStorage.removeItem('smartfood_usuario');
@@ -44,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ usuario, carregando, login, logout }}>
+    <AuthContext.Provider value={{ usuario, carregando, login, entrarComSessao, logout }}>
       {children}
     </AuthContext.Provider>
   );

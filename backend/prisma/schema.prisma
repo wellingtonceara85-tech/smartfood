@@ -16,13 +16,32 @@ model Usuario {
   id        String   @id @default(uuid())
   nome      String
   email     String   @unique
-  senhaHash String   @map("senha_hash")
+  // Nulo enquanto o usuário está "aguardando ativação" — criado pelo Admin
+  // Master sem senha, até o próprio dono definir a sua via ConviteAtivacao.
+  senhaHash String?  @map("senha_hash")
   papel     Papel    @default(dono_loja)
   lojaId    String?  @map("loja_id")
   loja      Loja?    @relation(fields: [lojaId], references: [id], onDelete: Cascade)
   criadoEm  DateTime @default(now()) @map("criado_em")
 
+  convitesAtivacao ConviteAtivacao[]
+
   @@map("usuarios")
+}
+
+model ConviteAtivacao {
+  id         String    @id @default(uuid())
+  usuarioId  String    @map("usuario_id")
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  // Só o hash do token fica no banco — o token bruto existe apenas no link
+  // enviado ao lojista, nunca é persistido nem logado.
+  tokenHash  String    @unique @map("token_hash")
+  expiraEm   DateTime  @map("expira_em")
+  usadoEm    DateTime? @map("usado_em")
+  revogadoEm DateTime? @map("revogado_em")
+  criadoEm   DateTime  @default(now()) @map("criado_em")
+
+  @@map("convites_ativacao")
 }
 
 model Loja {

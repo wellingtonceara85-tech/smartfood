@@ -88,6 +88,7 @@ export interface LojaAdmin {
   criadoEm: string;
   totalProdutos: number;
   totalPedidos: number;
+  donoAtivado: boolean;
 }
 
 export type StatusPedido = 'recebido' | 'em_preparo' | 'pronto' | 'entregue' | 'finalizado';

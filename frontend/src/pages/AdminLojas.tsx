@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
+import { slugificar } from '../lib/slug';
 import { useAuth } from '../context/AuthContext';
 import { LojaAdmin } from '../types';
 
@@ -10,7 +11,6 @@ interface FormularioLoja {
   telefoneWhatsapp: string;
   donoNome: string;
   donoEmail: string;
-  donoSenha: string;
 }
 
 const formularioVazio: FormularioLoja = {
@@ -20,20 +20,15 @@ const formularioVazio: FormularioLoja = {
   telefoneWhatsapp: '',
   donoNome: '',
   donoEmail: '',
-  donoSenha: '',
 };
 
-// eslint-disable-next-line no-misleading-character-class
-const MARCAS_DIACRITICAS = /[̀-ͯ]/g;
+interface LojaCriada extends LojaAdmin {
+  linkAtivacao: string;
+}
 
-function slugificar(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(MARCAS_DIACRITICAS, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+interface LinkGerado {
+  lojaNome: string;
+  link: string;
 }
 
 export function AdminLojas() {
@@ -43,7 +38,11 @@ export function AdminLojas() {
   const [formulario, setFormulario] = useState<FormularioLoja | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [linkGerado, setLinkGerado] = useState<LinkGerado | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState(false);
+  const [gerandoConviteId, setGerandoConviteId] = useState<string | null>(null);
   const formularioRef = useRef<HTMLFormElement>(null);
+  const linkGeradoRef = useRef<HTMLDivElement>(null);
   const formularioAberto = formulario !== null;
 
   useEffect(() => {
@@ -51,6 +50,12 @@ export function AdminLojas() {
       formularioRef.current?.scrollIntoView({ block: 'start' });
     }
   }, [formularioAberto]);
+
+  useEffect(() => {
+    if (linkGerado) {
+      linkGeradoRef.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [linkGerado]);
 
   async function carregar() {
     setCarregando(true);
@@ -72,7 +77,7 @@ export function AdminLojas() {
     setErro(null);
     setSalvando(true);
     try {
-      const criada = await api<LojaAdmin>('/api/admin-master/lojas', {
+      const criada = await api<LojaCriada>('/api/admin-master/lojas', {
         method: 'POST',
         autenticado: true,
         body: {
@@ -81,15 +86,40 @@ export function AdminLojas() {
           telefoneWhatsapp: formulario.telefoneWhatsapp,
           donoNome: formulario.donoNome,
           donoEmail: formulario.donoEmail,
-          donoSenha: formulario.donoSenha,
         },
       });
-      setLojas((atuais) => [criada, ...atuais]);
+      const { linkAtivacao, ...lojaResumo } = criada;
+      setLojas((atuais) => [lojaResumo, ...atuais]);
       setFormulario(null);
+      setLinkGerado({ lojaNome: criada.nome, link: linkAtivacao });
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao criar loja');
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function reenviarConvite(loja: LojaAdmin) {
+    setGerandoConviteId(loja.id);
+    try {
+      const resp = await api<{ linkAtivacao: string }>(
+        `/api/admin-master/lojas/${loja.id}/convite`,
+        { method: 'POST', autenticado: true },
+      );
+      setLinkGerado({ lojaNome: loja.nome, link: resp.linkAtivacao });
+    } finally {
+      setGerandoConviteId(null);
+    }
+  }
+
+  async function copiarLink() {
+    if (!linkGerado) return;
+    try {
+      await navigator.clipboard.writeText(linkGerado.link);
+      setLinkCopiado(true);
+      setTimeout(() => setLinkCopiado(false), 2000);
+    } catch {
+      // clipboard indisponível — o link já fica visível e selecionável pro admin copiar manualmente
     }
   }
 
@@ -106,6 +136,41 @@ export function AdminLojas() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-6">
+        {linkGerado && (
+          <div
+            ref={linkGeradoRef}
+            className="mb-4 rounded-lg border border-green-300 bg-green-50 p-4"
+          >
+            <p className="font-medium text-green-800">Link de ativação de {linkGerado.lojaNome}</p>
+            <p className="mt-1 text-sm text-green-700">
+              Envie esse link ao lojista pelo WhatsApp. Ele expira em 7 dias e só pode ser usado uma
+              vez.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <input
+                readOnly
+                value={linkGerado.link}
+                onFocus={(e) => e.target.select()}
+                className="flex-1 rounded-lg border border-green-300 bg-white px-3 py-2 text-sm text-gray-700"
+              />
+              <button
+                type="button"
+                onClick={copiarLink}
+                className="shrink-0 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
+              >
+                {linkCopiado ? 'Copiado!' : 'Copiar link'}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLinkGerado(null)}
+              className="mt-2 text-xs text-green-700 hover:underline"
+            >
+              Fechar
+            </button>
+          </div>
+        )}
+
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-semibold text-gray-800">Lojas cadastradas</h2>
           <button
@@ -122,9 +187,20 @@ export function AdminLojas() {
           <ul className="flex flex-col gap-2">
             {lojas.map((loja) => (
               <li key={loja.id} className="rounded-lg border bg-white p-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-medium text-gray-800">{loja.nome}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-800">{loja.nome}</p>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                          loja.donoAtivado
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                        }`}
+                      >
+                        {loja.donoAtivado ? 'Ativo' : 'Aguardando ativação'}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500">
                       /{loja.slug} · {loja.telefoneWhatsapp}
                     </p>
@@ -134,14 +210,28 @@ export function AdminLojas() {
                     <p>{loja.totalPedidos} pedidos</p>
                   </div>
                 </div>
-                <a
-                  href={`/${loja.slug}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-1 inline-block text-sm text-blue-600 hover:underline"
-                >
-                  Ver cardápio público →
-                </a>
+                <div className="mt-1 flex flex-wrap items-center gap-3">
+                  <a
+                    href={`/${loja.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sm text-blue-600 hover:underline"
+                  >
+                    Ver cardápio público →
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => reenviarConvite(loja)}
+                    disabled={gerandoConviteId === loja.id}
+                    className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    {gerandoConviteId === loja.id
+                      ? 'Gerando...'
+                      : loja.donoAtivado
+                        ? 'Gerar novo link de ativação'
+                        : 'Reenviar link de ativação'}
+                  </button>
+                </div>
               </li>
             ))}
             {lojas.length === 0 && (
@@ -207,7 +297,11 @@ export function AdminLojas() {
             />
 
             <hr />
-            <p className="text-sm font-medium text-gray-700">Login do dono da loja</p>
+            <p className="text-sm font-medium text-gray-700">Dados do dono da loja</p>
+            <p className="-mt-2 text-xs text-gray-500">
+              O dono define a própria senha depois, por um link de ativação — você nunca a vê nem a
+              define aqui.
+            </p>
 
             <input
               required
@@ -225,15 +319,6 @@ export function AdminLojas() {
               value={formulario.donoEmail}
               onChange={(e) =>
                 setFormulario((atual) => (atual ? { ...atual, donoEmail: e.target.value } : atual))
-              }
-              className="rounded-lg border border-gray-300 px-3 py-2"
-            />
-            <input
-              required
-              placeholder="Senha (mínimo 6 caracteres)"
-              value={formulario.donoSenha}
-              onChange={(e) =>
-                setFormulario((atual) => (atual ? { ...atual, donoSenha: e.target.value } : atual))
               }
               className="rounded-lg border border-gray-300 px-3 py-2"
             />
