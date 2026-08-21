@@ -12,17 +12,26 @@ enum Papel {
   admin_master
 }
 
+enum StatusLoja {
+  ativa
+  suspensa
+}
+
 model Usuario {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   nome      String
-  email     String   @unique
+  email     String    @unique
   // Nulo enquanto o usuário está "aguardando ativação" — criado pelo Admin
   // Master sem senha, até o próprio dono definir a sua via ConviteAtivacao.
-  senhaHash String?  @map("senha_hash")
-  papel     Papel    @default(dono_loja)
-  lojaId    String?  @map("loja_id")
-  loja      Loja?    @relation(fields: [lojaId], references: [id], onDelete: Cascade)
-  criadoEm  DateTime @default(now()) @map("criado_em")
+  senhaHash String?   @map("senha_hash")
+  papel     Papel     @default(dono_loja)
+  lojaId    String?   @map("loja_id")
+  loja      Loja?     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  // Preenchido no momento em que o convite de ativação é usado (senha definida) — início do trial da loja.
+  ativadoEm DateTime? @map("ativado_em")
+  // Atualizado a cada login bem-sucedido (login normal ou ativação, que já loga o dono) — única fonte de "uso recente".
+  ultimoLoginEm DateTime? @map("ultimo_login_em")
+  criadoEm  DateTime  @default(now()) @map("criado_em")
 
   convitesAtivacao ConviteAtivacao[]
 
@@ -61,6 +70,12 @@ model Loja {
   corSecundaria             String   @default("#15803D") @map("cor_secundaria")
   aceitaAgendamento         Boolean  @default(false) @map("aceita_agendamento")
   antecedenciaMinimaMinutos Int      @default(0) @map("antecedencia_minima_minutos")
+  status                    StatusLoja @default(ativa)
+  suspensaEm                DateTime? @map("suspensa_em")
+  // Início/fim do trial de 30 dias — preenchidos quando o dono ativa a conta (não na criação da loja).
+  // trialFimEm pode ser prorrogado pelo Admin Master; trialInicioEm nunca muda depois de setado.
+  trialInicioEm             DateTime? @map("trial_inicio_em")
+  trialFimEm                DateTime? @map("trial_fim_em")
   criadoEm                  DateTime @default(now()) @map("criado_em")
 
   usuarios       Usuario[]

@@ -44,6 +44,16 @@ export interface LojaPublica {
   bairrosEntrega: BairroEntrega[];
 }
 
+export type NivelAlertaTrial = 'ok' | 'moderado' | 'critico' | 'expirado' | 'sem_trial';
+
+export interface TrialInfo {
+  trialInicioEm: string | null;
+  trialFimEm: string | null;
+  diasRestantes: number | null;
+  expirado: boolean;
+  nivelAlerta: NivelAlertaTrial;
+}
+
 export interface Loja {
   id: string;
   nome: string;
@@ -61,6 +71,7 @@ export interface Loja {
   corSecundaria: string;
   aceitaAgendamento: boolean;
   antecedenciaMinimaMinutos: number;
+  trial: TrialInfo;
 }
 
 export interface ItemCarrinho {
@@ -80,15 +91,55 @@ export interface Usuario {
   lojaId: string | null;
 }
 
+export type StatusLojaAdmin = 'aguardando_ativacao' | 'ativa' | 'suspensa';
+
 export interface LojaAdmin {
   id: string;
   nome: string;
   slug: string;
   telefoneWhatsapp: string;
+  status: StatusLojaAdmin;
   criadoEm: string;
+  donoNome: string | null;
+  donoEmail: string | null;
+  donoAtivado: boolean;
+  ativadoEm: string | null;
+  ultimoAcessoEm: string | null;
   totalProdutos: number;
   totalPedidos: number;
-  donoAtivado: boolean;
+  valorMovimentado: number;
+  trial: TrialInfo;
+}
+
+export interface EtapaOnboarding {
+  chave: 'conta_ativada' | 'primeiro_acesso' | 'produtos_cadastrados' | 'primeiro_pedido';
+  rotulo: string;
+  concluida: boolean;
+}
+
+export interface LojaAdminDetalhe extends LojaAdmin {
+  endereco: string | null;
+  suspensaEm: string | null;
+  onboarding: EtapaOnboarding[];
+}
+
+export interface OverviewAdminMaster {
+  totalLojas: number;
+  ativas: number;
+  aguardandoAtivacao: number;
+  suspensas: number;
+  lojistasComUsoRecente: number;
+  totalPedidos: number;
+  valorMovimentado: number;
+  trialsVencendoEm7Dias: number;
+  trialsExpirados: number;
+}
+
+export interface BoasVindasGeradas {
+  linkAtivacao: string;
+  linkCardapio: string;
+  linkGuiaWhatsapp: string;
+  mensagemBoasVindas: string;
 }
 
 export type StatusPedido = 'recebido' | 'em_preparo' | 'pronto' | 'entregue' | 'finalizado';

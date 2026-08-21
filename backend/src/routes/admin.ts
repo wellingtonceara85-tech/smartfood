@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
 import { prisma } from '../prisma';
 import { HEX_REGEX, normalizarCor } from '../utils/cor';
+import { calcularTrial } from '../utils/trial';
 
 const corHexSchema = z
   .string()
@@ -52,7 +53,7 @@ adminRouter.get('/loja', async (req, res) => {
 
   const loja = await prisma.loja.findUnique({ where: { id: lojaId } });
   if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' });
-  res.json(loja);
+  res.json({ ...loja, trial: calcularTrial(loja.trialInicioEm, loja.trialFimEm) });
 });
 
 const atualizarLojaSchema = z.object({

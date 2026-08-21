@@ -1,16 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { AvisoTrial } from '../components/AvisoTrial';
 import { useAuth } from '../context/AuthContext';
 
 const ITENS_NAV = [
-  { rota: '/painel/dashboard', rotulo: 'Dashboard', icone: '📊' },
-  { rota: '/painel/produtos', rotulo: 'Produtos', icone: '🍔' },
-  { rota: '/painel/pedidos', rotulo: 'Pedidos', icone: '🧾' },
-  { rota: '/painel/entrega', rotulo: 'Entrega', icone: '🛵' },
-  { rota: '/painel/loja', rotulo: 'Minha loja', icone: '🏪' },
+  { rota: '/admin/visao-geral', rotulo: 'Visão geral', icone: '📊' },
+  { rota: '/admin/lojas', rotulo: 'Lojas', icone: '🏪' },
 ];
 
-export function PainelLayout() {
+export function AdminMasterLayout() {
   const { usuario, logout } = useAuth();
 
   const linkClasse = ({ isActive }: { isActive: boolean }) =>
@@ -29,7 +25,9 @@ export function PainelLayout() {
             S
           </span>
           <div>
-            <p className="text-sm font-bold leading-tight text-gray-800">SmartFood</p>
+            <p className="text-sm font-bold leading-tight text-gray-800">
+              SmartFood <span className="font-normal text-gray-400">· Admin Master</span>
+            </p>
             <p className="text-xs leading-tight text-gray-500">{usuario?.email}</p>
           </div>
         </div>
@@ -41,8 +39,6 @@ export function PainelLayout() {
         </button>
       </header>
 
-      <AvisoTrial />
-
       <nav className="sticky top-0 z-10 flex gap-1.5 overflow-x-auto border-b bg-white px-4 py-2 shadow-sm">
         {ITENS_NAV.map((item) => (
           <NavLink key={item.rota} to={item.rota} className={linkClasse}>
@@ -52,7 +48,7 @@ export function PainelLayout() {
         ))}
       </nav>
 
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-6xl px-4 py-6">
         <Outlet />
       </main>
     </div>

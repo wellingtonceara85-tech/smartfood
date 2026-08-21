@@ -16,7 +16,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "tsx --test src/utils/agendamento.test.ts src/utils/convite.test.ts src/utils/cor.test.ts src/utils/endereco.test.ts src/utils/horario.test.ts src/utils/mensagemWhatsapp.test.ts src/utils/pedidoPublico.test.ts"
+    "test": "tsx --test src/utils/agendamento.test.ts src/utils/convite.test.ts src/utils/cor.test.ts src/utils/elegibilidadeExclusao.test.ts src/utils/endereco.test.ts src/utils/horario.test.ts src/utils/mensagemBoasVindas.test.ts src/utils/mensagemWhatsapp.test.ts src/utils/onboarding.test.ts src/utils/pedidoPublico.test.ts src/utils/trial.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",

@@ -3,7 +3,11 @@ import { RotaAdminMaster } from './components/RotaAdminMaster';
 import { RotaProtegida } from './components/RotaProtegida';
 import { useAuth } from './context/AuthContext';
 import { AcompanharPedido } from './pages/AcompanharPedido';
+import { AdminLojaDetalhe } from './pages/AdminLojaDetalhe';
 import { AdminLojas } from './pages/AdminLojas';
+import { AdminMasterLayout } from './pages/AdminMasterLayout';
+import { AdminVisaoGeral } from './pages/AdminVisaoGeral';
+import { AjudaWhatsAppBusiness } from './pages/AjudaWhatsAppBusiness';
 import { AtivarConta } from './pages/AtivarConta';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
@@ -18,7 +22,8 @@ import { PainelProdutos } from './pages/PainelProdutos';
 export function App() {
   const { usuario } = useAuth();
 
-  const destinoPosLogin = usuario?.papel === 'admin_master' ? '/admin/lojas' : '/painel/dashboard';
+  const destinoPosLogin =
+    usuario?.papel === 'admin_master' ? '/admin/visao-geral' : '/painel/dashboard';
 
   return (
     <Routes>
@@ -40,10 +45,16 @@ export function App() {
       </Route>
 
       <Route element={<RotaAdminMaster />}>
-        <Route path="/admin/lojas" element={<AdminLojas />} />
+        <Route path="/admin" element={<AdminMasterLayout />}>
+          <Route index element={<Navigate to="visao-geral" replace />} />
+          <Route path="visao-geral" element={<AdminVisaoGeral />} />
+          <Route path="lojas" element={<AdminLojas />} />
+          <Route path="lojas/:id" element={<AdminLojaDetalhe />} />
+        </Route>
       </Route>
 
       <Route path="/ativar-conta" element={<AtivarConta />} />
+      <Route path="/ajuda/whatsapp-business" element={<AjudaWhatsAppBusiness />} />
 
       <Route path="/:slug/pedido/:pedidoId" element={<AcompanharPedido />} />
       <Route path="/:slug" element={<LojaPublica />} />

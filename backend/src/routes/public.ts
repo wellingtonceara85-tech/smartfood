@@ -10,6 +10,7 @@ import {
   validarAgendamento,
 } from '../utils/agendamento';
 import { conviteValido, hashToken } from '../utils/convite';
+import { dataFimTrial } from '../utils/trial';
 import { COR_PRIMARIA_PADRAO, COR_SECUNDARIA_PADRAO, corOuPadrao } from '../utils/cor';
 import {
   EnderecoEntregaNormalizado,
@@ -416,7 +417,7 @@ publicRouter.post('/ativacao/:token', async (req, res) => {
   const tokenHash = hashToken(req.params.token);
   const convite = await prisma.conviteAtivacao.findUnique({
     where: { tokenHash },
-    include: { usuario: true },
+    include: { usuario: { include: { loja: true } } },
   });
 
   if (!convite || !conviteValido(convite)) {
@@ -424,13 +425,28 @@ publicRouter.post('/ativacao/:token', async (req, res) => {
   }
 
   const senhaHash = await bcrypt.hash(parsed.data.senha, 10);
+  const agora = new Date();
 
   await prisma.$transaction([
-    prisma.usuario.update({ where: { id: convite.usuarioId }, data: { senhaHash } }),
+    prisma.usuario.update({
+      where: { id: convite.usuarioId },
+      data: { senhaHash, ativadoEm: agora, ultimoLoginEm: agora },
+    }),
     prisma.conviteAtivacao.update({
       where: { id: convite.id },
-      data: { usadoEm: new Date() },
+      data: { usadoEm: agora },
     }),
+    // Trial de 30 dias começa aqui — na ativação da conta do dono, não na criação da loja.
+    // Só a primeira ativação inicia o trial: se por algum motivo já houver
+    // trialInicioEm (ex.: reativação de convite após já ter ativado antes), não sobrescreve.
+    ...(convite.usuario.lojaId && !convite.usuario.loja?.trialInicioEm
+      ? [
+          prisma.loja.update({
+            where: { id: convite.usuario.lojaId },
+            data: { trialInicioEm: agora, trialFimEm: dataFimTrial(agora) },
+          }),
+        ]
+      : []),
   ]);
 
   // Ativação já deixa o lojista logado — evita um passo extra de login

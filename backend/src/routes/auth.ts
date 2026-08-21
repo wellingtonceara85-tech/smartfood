@@ -18,7 +18,7 @@ authRouter.post('/login', async (req, res) => {
   }
 
   const { email, senha } = parsed.data;
-  const usuario = await prisma.usuario.findUnique({ where: { email } });
+  const usuario = await prisma.usuario.findUnique({ where: { email }, include: { loja: true } });
   if (!usuario) {
     return res.status(401).json({ erro: 'Credenciais inválidas' });
   }
@@ -36,6 +36,19 @@ authRouter.post('/login', async (req, res) => {
     return res.status(401).json({ erro: 'Credenciais inválidas' });
   }
 
+  // Loja suspensa pelo Admin Master: o dono não consegue mais entrar até ser reativada.
+  // A suspensão nunca pode ser manipulada pelo próprio lojista (ver adminMaster.ts).
+  if (usuario.papel === 'dono_loja' && usuario.loja?.status === 'suspensa') {
+    return res.status(403).json({
+      erro: 'Esta loja está suspensa. Fale com a administração do SmartFood para reativar o acesso.',
+    });
+  }
+
+  await prisma.usuario.update({
+    where: { id: usuario.id },
+    data: { ultimoLoginEm: new Date() },
+  });
+
   const payload = { sub: usuario.id, papel: usuario.papel, lojaId: usuario.lojaId };
   res.json({
     accessToken: signAccessToken(payload),
@@ -52,7 +65,7 @@ authRouter.post('/login', async (req, res) => {
 
 const refreshSchema = z.object({ refreshToken: z.string().min(1) });
 
-authRouter.post('/refresh', (req, res) => {
+authRouter.post('/refresh', async (req, res) => {
   const parsed = refreshSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ erro: 'Dados inválidos' });
@@ -63,6 +76,21 @@ authRouter.post('/refresh', (req, res) => {
     if (payload.type !== 'refresh') {
       return res.status(401).json({ erro: 'Token inválido' });
     }
+
+    // Revalida contra o banco (não só o conteúdo do token) — sem isso, um
+    // refresh token de 7 dias continuaria renovando acesso normalmente mesmo
+    // depois da loja ser suspensa pelo Admin Master.
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: payload.sub },
+      include: { loja: true },
+    });
+    if (!usuario) {
+      return res.status(401).json({ erro: 'Usuário não encontrado' });
+    }
+    if (usuario.papel === 'dono_loja' && usuario.loja?.status === 'suspensa') {
+      return res.status(403).json({ erro: 'Esta loja está suspensa.' });
+    }
+
     const accessToken = signAccessToken({
       sub: payload.sub,
       papel: payload.papel,
