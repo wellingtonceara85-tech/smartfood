@@ -6,7 +6,11 @@ import { requireAuth, requirePapel } from '../middleware/auth';
 import { prisma } from '../prisma';
 import { dataExpiracaoConvite, gerarTokenConvite } from '../utils/convite';
 import { lojaElegivelParaExclusao } from '../utils/elegibilidadeExclusao';
-import { CAMINHO_GUIA_WHATSAPP, montarMensagemBoasVindas } from '../utils/mensagemBoasVindas';
+import {
+  CAMINHO_GUIA_INSTALAR,
+  CAMINHO_GUIA_WHATSAPP,
+  montarMensagemBoasVindas,
+} from '../utils/mensagemBoasVindas';
 import { montarOnboarding } from '../utils/onboarding';
 import { calcularTrial, dataFimTrial } from '../utils/trial';
 
@@ -17,12 +21,20 @@ function linkAtivacao(tokenBruto: string): string {
   return `${env.frontendUrl}/ativar-conta?token=${tokenBruto}`;
 }
 
+function linkAcesso(): string {
+  return `${env.frontendUrl}/login`;
+}
+
 function linkCardapio(slug: string): string {
   return `${env.frontendUrl}/${slug}`;
 }
 
 function linkGuiaWhatsapp(): string {
   return `${env.frontendUrl}${CAMINHO_GUIA_WHATSAPP}`;
+}
+
+function linkGuiaInstalar(): string {
+  return `${env.frontendUrl}${CAMINHO_GUIA_INSTALAR}`;
 }
 
 const JANELA_USO_RECENTE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -247,14 +259,18 @@ adminMasterRouter.post('/lojas', async (req, res) => {
     valorMovimentado: 0,
     trial: calcularTrial(null, null),
     linkAtivacao: linkAtiv,
+    linkAcesso: linkAcesso(),
     linkCardapio: linkCardapio(loja.slug),
     linkGuiaWhatsapp: linkGuiaWhatsapp(),
+    linkGuiaInstalar: linkGuiaInstalar(),
     mensagemBoasVindas: montarMensagemBoasVindas({
       donoNome: parsed.data.donoNome,
       lojaNome: loja.nome,
       linkAtivacao: linkAtiv,
+      linkAcesso: linkAcesso(),
       linkCardapio: linkCardapio(loja.slug),
       linkGuiaWhatsapp: linkGuiaWhatsapp(),
+      linkGuiaInstalar: linkGuiaInstalar(),
     }),
   });
 });
@@ -296,14 +312,18 @@ adminMasterRouter.post('/lojas/:id/convite', async (req, res) => {
   const linkAtiv = linkAtivacao(tokenBruto);
   res.status(201).json({
     linkAtivacao: linkAtiv,
+    linkAcesso: linkAcesso(),
     linkCardapio: linkCardapio(loja.slug),
     linkGuiaWhatsapp: linkGuiaWhatsapp(),
+    linkGuiaInstalar: linkGuiaInstalar(),
     mensagemBoasVindas: montarMensagemBoasVindas({
       donoNome: dono.nome,
       lojaNome: loja.nome,
       linkAtivacao: linkAtiv,
+      linkAcesso: linkAcesso(),
       linkCardapio: linkCardapio(loja.slug),
       linkGuiaWhatsapp: linkGuiaWhatsapp(),
+      linkGuiaInstalar: linkGuiaInstalar(),
     }),
   });
 });

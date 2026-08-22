@@ -7,6 +7,7 @@ import { AdminLojaDetalhe } from './pages/AdminLojaDetalhe';
 import { AdminLojas } from './pages/AdminLojas';
 import { AdminMasterLayout } from './pages/AdminMasterLayout';
 import { AdminVisaoGeral } from './pages/AdminVisaoGeral';
+import { AjudaInstalarSmartFood } from './pages/AjudaInstalarSmartFood';
 import { AjudaWhatsAppBusiness } from './pages/AjudaWhatsAppBusiness';
 import { AtivarConta } from './pages/AtivarConta';
 import { Home } from './pages/Home';
@@ -55,6 +56,7 @@ export function App() {
 
       <Route path="/ativar-conta" element={<AtivarConta />} />
       <Route path="/ajuda/whatsapp-business" element={<AjudaWhatsAppBusiness />} />
+      <Route path="/ajuda/instalar-smartfood" element={<AjudaInstalarSmartFood />} />
 
       <Route path="/:slug/pedido/:pedidoId" element={<AcompanharPedido />} />
       <Route path="/:slug" element={<LojaPublica />} />

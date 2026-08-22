@@ -1,11 +1,14 @@
 export const CAMINHO_GUIA_WHATSAPP = '/ajuda/whatsapp-business';
+export const CAMINHO_GUIA_INSTALAR = '/ajuda/instalar-smartfood';
 
 interface DadosBoasVindas {
   donoNome: string;
   lojaNome: string;
   linkAtivacao: string;
+  linkAcesso: string;
   linkCardapio: string;
   linkGuiaWhatsapp: string;
+  linkGuiaInstalar: string;
 }
 
 /**
@@ -30,7 +33,11 @@ export function montarMensagemBoasVindas(dados: DadosBoasVindas): string {
     '⚠️ O link expira em *7 dias* e pode ser utilizado *apenas uma vez*.',
     dados.linkAtivacao,
     '',
-    '🛒 *2. Cardápio público*',
+    '🔑 *2. Acesso ao SmartFood*',
+    'Guarde este link — é o endereço permanente para entrar no SmartFood nos próximos acessos, usando seu *e-mail e senha*.',
+    dados.linkAcesso,
+    '',
+    '🛒 *3. Cardápio público*',
     'Este é o link que poderá ser enviado aos seus *clientes* para acessarem o cardápio e realizarem os pedidos:',
     dados.linkCardapio,
     '',
@@ -42,6 +49,10 @@ export function montarMensagemBoasVindas(dados: DadosBoasVindas): string {
     '📱 *WhatsApp Business*',
     'Preparamos também um guia rápido mostrando como configurar o WhatsApp Business para direcionar seus clientes automaticamente ao cardápio SmartFood:',
     dados.linkGuiaWhatsapp,
+    '',
+    '📲 Quer deixar o SmartFood na tela inicial do celular?',
+    'Veja o passo a passo para iPhone e Android:',
+    dados.linkGuiaInstalar,
     '',
     'Pode começar utilizando normalmente. Se encontrar alguma dificuldade ou tiver alguma sugestão, *me avise*. Esse retorno vai nos ajudar a melhorar ainda mais o SmartFood. 😊',
   ].join('\n');

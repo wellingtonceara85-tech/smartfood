@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { AvisoTrial } from '../components/AvisoTrial';
 import { useAuth } from '../context/AuthContext';
 
@@ -54,6 +54,18 @@ export function PainelLayout() {
 
       <main className="mx-auto max-w-5xl px-4 py-6">
         <Outlet />
+
+        <p className="mt-8 text-center text-xs text-gray-400">
+          Adicione o SmartFood à tela inicial →{' '}
+          <Link
+            to="/ajuda/instalar-smartfood"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-gray-600"
+          >
+            Ver como adicionar
+          </Link>
+        </p>
       </main>
     </div>
   );

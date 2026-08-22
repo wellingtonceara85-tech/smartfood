@@ -163,3 +163,46 @@ test('mensagem de pedido imediato não menciona agendamento', () => {
 
   assert.doesNotMatch(mensagem, /Encomenda agendada/);
 });
+
+test('item com espaço em branco à direita no nome não quebra o negrito do WhatsApp', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [{ nome: 'Strogonoff de frango ', opcao: null, quantidade: 1, subtotal: 13 }],
+    13,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /\*1x Strogonoff de frango\* - R\$ 13,00/);
+  assert.doesNotMatch(mensagem, / \*- /);
+  assert.doesNotMatch(mensagem, /\*- /);
+});
+
+test('item com opção com espaço em branco à direita também fica sem espaço antes do fechamento', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [{ nome: 'X-Burguer', opcao: 'Grande ', quantidade: 2, subtotal: 45.8 }],
+    45.8,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /\*2x X-Burguer \(Grande\)\* - R\$ 45,80/);
+});
+
+test('múltiplos itens ficam cada um em negrito corretamente, sem quebrar observações', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [
+      { nome: 'X-Burguer', opcao: null, quantidade: 1, subtotal: 22.9, observacao: 'Sem cebola' },
+      { nome: 'Refrigerante', opcao: 'Lata', quantidade: 2, subtotal: 10 },
+    ],
+    32.9,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /\*1x X-Burguer\* - R\$ 22,90/);
+  assert.match(mensagem, /  Obs: Sem cebola/);
+  assert.match(mensagem, /\*2x Refrigerante \(Lata\)\* - R\$ 10,00/);
+});

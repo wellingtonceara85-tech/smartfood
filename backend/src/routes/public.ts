@@ -380,6 +380,19 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
 // e alta entropia, é a prova de autorização — o Admin Master nunca vê nem
 // define a senha do lojista (ver adminMaster.ts).
 
+// Distingue "convite já usado" (o dono já ativou a conta antes e só precisa
+// fazer login normalmente) de qualquer outro caso de link inválido/expirado —
+// o frontend usa `motivo` para mostrar uma orientação diferente em cada caso.
+function erroConvite(convite: { usadoEm: Date | null } | null) {
+  if (convite?.usadoEm) {
+    return { erro: 'Esta conta já foi ativada.', motivo: 'usado' as const };
+  }
+  return {
+    erro: 'Link de ativação inválido, expirado ou já utilizado.',
+    motivo: 'invalido' as const,
+  };
+}
+
 publicRouter.get('/ativacao/:token', async (req, res) => {
   const tokenHash = hashToken(req.params.token);
   const convite = await prisma.conviteAtivacao.findUnique({
@@ -388,7 +401,7 @@ publicRouter.get('/ativacao/:token', async (req, res) => {
   });
 
   if (!convite || !conviteValido(convite)) {
-    return res.status(400).json({ erro: 'Link de ativação inválido, expirado ou já utilizado.' });
+    return res.status(400).json(erroConvite(convite));
   }
 
   res.json({
@@ -421,7 +434,7 @@ publicRouter.post('/ativacao/:token', async (req, res) => {
   });
 
   if (!convite || !conviteValido(convite)) {
-    return res.status(400).json({ erro: 'Link de ativação inválido, expirado ou já utilizado.' });
+    return res.status(400).json(erroConvite(convite));
   }
 
   const senhaHash = await bcrypt.hash(parsed.data.senha, 10);

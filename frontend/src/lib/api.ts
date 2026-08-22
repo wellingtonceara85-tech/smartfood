@@ -70,11 +70,16 @@ export async function api<T>(caminho: string, opcoes: OpcoesRequisicao = {}): Pr
 
   if (!resposta.ok) {
     const erro = await resposta.json().catch(() => ({ erro: resposta.statusText }));
-    throw new Error(erro.erro ?? 'Erro na requisição');
+    throw Object.assign(new Error(erro.erro ?? 'Erro na requisição'), erro);
   }
 
   if (resposta.status === 204) return undefined as T;
   return resposta.json() as Promise<T>;
+}
+
+/** Erro lançado por `api()` — além da mensagem, pode carregar campos extras do corpo JSON (ex: `motivo`). */
+export interface ApiError extends Error {
+  motivo?: string;
 }
 
 export async function enviarFoto(arquivo: File): Promise<string> {

@@ -69,8 +69,15 @@ export function montarMensagemPedido(
   }
 
   for (const item of itens) {
-    const descricaoOpcao = item.opcao ? ` (${item.opcao})` : '';
-    linhas.push(`*${item.quantidade}x ${item.nome}${descricaoOpcao}* - ${moeda(item.subtotal)}`);
+    // .trim() aqui é defensivo: um espaço em branco à direita no nome/opção
+    // cadastrado (ex: "Frango " em vez de "Frango") fica colado ao * de
+    // fechamento e quebra o negrito do WhatsApp — que exibe os asteriscos
+    // literalmente quando há espaço encostado neles.
+    const nome = item.nome.trim();
+    const opcao = item.opcao?.trim();
+    const descricaoOpcao = opcao ? ` (${opcao})` : '';
+    const destaque = `${item.quantidade}x ${nome}${descricaoOpcao}`;
+    linhas.push(`*${destaque}* - ${moeda(item.subtotal)}`);
     if (item.observacao) {
       linhas.push(`  Obs: ${item.observacao}`);
     }

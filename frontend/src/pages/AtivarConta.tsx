@@ -1,12 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Loading } from '../components/ui/Loading';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../lib/api';
+import { ApiError, api } from '../lib/api';
 import { Usuario } from '../types';
 
 interface ConviteInfo {
@@ -17,6 +17,10 @@ interface ConviteInfo {
 
 const MENSAGEM_LINK_INVALIDO = 'Link de ativação inválido, expirado ou já utilizado.';
 
+function motivoDoErro(e: unknown): string | undefined {
+  return e instanceof Error ? (e as ApiError).motivo : undefined;
+}
+
 export function AtivarConta() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
@@ -26,11 +30,13 @@ export function AtivarConta() {
   const [carregando, setCarregando] = useState(true);
   const [convite, setConvite] = useState<ConviteInfo | null>(null);
   const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
+  const [conviteJaUsado, setConviteJaUsado] = useState(false);
 
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
+  const [ativado, setAtivado] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -40,7 +46,10 @@ export function AtivarConta() {
     }
     api<ConviteInfo>(`/api/public/ativacao/${token}`)
       .then(setConvite)
-      .catch((e) => setErroCarregamento(e instanceof Error ? e.message : MENSAGEM_LINK_INVALIDO))
+      .catch((e) => {
+        setErroCarregamento(e instanceof Error ? e.message : MENSAGEM_LINK_INVALIDO);
+        setConviteJaUsado(motivoDoErro(e) === 'usado');
+      })
       .finally(() => setCarregando(false));
   }, [token]);
 
@@ -62,7 +71,7 @@ export function AtivarConta() {
         { method: 'POST', body: { senha, confirmarSenha } },
       );
       entrarComSessao(resp.accessToken, resp.refreshToken, resp.usuario);
-      navigate('/painel/dashboard');
+      setAtivado(true);
     } catch (e) {
       setErroEnvio(e instanceof Error ? e.message : 'Não foi possível ativar a conta');
     } finally {
@@ -74,6 +83,47 @@ export function AtivarConta() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loading />
+      </div>
+    );
+  }
+
+  if (ativado) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-sm shadow-card-hover">
+          <h1 className="mb-2 text-lg font-bold text-gray-800">Conta ativada com sucesso!</h1>
+          <p className="mb-4 text-sm text-gray-600">
+            Nos próximos acessos, entre normalmente no SmartFood usando seu e-mail e senha.
+          </p>
+          <Button className="w-full" onClick={() => navigate('/painel/dashboard')}>
+            Acessar meu painel
+          </Button>
+          <Link
+            to="/ajuda/instalar-smartfood"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 block text-center text-sm font-medium text-primary hover:underline"
+          >
+            Como adicionar o SmartFood à tela inicial
+          </Link>
+        </Card>
+      </div>
+    );
+  }
+
+  if (conviteJaUsado) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-sm shadow-card-hover">
+          <h1 className="mb-2 text-lg font-bold text-gray-800">Esta conta já foi ativada.</h1>
+          <p className="mb-4 text-sm text-gray-500">
+            Este link era somente para o primeiro acesso. Para entrar novamente, utilize seu e-mail
+            e senha.
+          </p>
+          <Button className="w-full" onClick={() => navigate('/login')}>
+            Ir para o login
+          </Button>
+        </Card>
       </div>
     );
   }
