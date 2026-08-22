@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Loading } from '../components/ui/Loading';
 import { api } from '../lib/api';
-import { DashboardResumo, PedidoAdmin, Produto } from '../types';
+import { DashboardResumo, Pendencia, PedidoAdmin, Produto } from '../types';
 
 function formatarISO(data: Date): string {
   const ano = data.getFullYear();
@@ -51,6 +51,7 @@ export function PainelDashboard() {
   const [pedidosEmPreparo, setPedidosEmPreparo] = useState<number | null>(null);
   const [encomendasProximas, setEncomendasProximas] = useState<number | null>(null);
   const [totalProdutos, setTotalProdutos] = useState<number | null>(null);
+  const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -81,6 +82,9 @@ export function PainelDashboard() {
     api<Produto[]>('/api/admin/produtos', { autenticado: true }).then((produtos) => {
       setTotalProdutos(produtos.length);
     });
+    api<{ pendencias: Pendencia[] }>('/api/admin/pendencias', { autenticado: true }).then((resp) =>
+      setPendencias(resp.pendencias),
+    );
   }, []);
 
   function aplicarPeriodo(inicio: string, fim: string, chave: typeof periodoAtivo) {
@@ -95,6 +99,30 @@ export function PainelDashboard() {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold text-gray-800">Dashboard</h2>
+
+      {pendencias.length > 0 && (
+        <Card className="border border-yellow-200 bg-yellow-50">
+          <p className="font-semibold text-gray-800">
+            <span aria-hidden="true">🚀</span> Deixe sua loja pronta para vender mais
+          </p>
+          <ul className="mt-2 flex flex-col gap-2">
+            {pendencias.map((pendencia) => (
+              <li key={pendencia.chave}>
+                <Link
+                  to={pendencia.rota}
+                  className="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm transition-colors hover:bg-gray-50"
+                >
+                  <span>
+                    <span className="text-sm font-medium text-gray-800">{pendencia.titulo}</span>
+                    <span className="block text-xs text-gray-500">{pendencia.descricao}</span>
+                  </span>
+                  <span className="shrink-0 text-xs font-semibold text-primary">Resolver →</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">

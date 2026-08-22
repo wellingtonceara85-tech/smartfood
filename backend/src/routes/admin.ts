@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
 import { prisma } from '../prisma';
 import { HEX_REGEX, normalizarCor } from '../utils/cor';
+import { montarPendenciasLoja } from '../utils/pendenciasLoja';
 import { calcularTrial } from '../utils/trial';
 
 const corHexSchema = z
@@ -83,6 +84,35 @@ adminRouter.put('/loja', async (req, res) => {
 
   const loja = await prisma.loja.update({ where: { id: lojaId }, data: parsed.data });
   res.json(loja);
+});
+
+// Pendências de configuração da loja pro card "Deixe sua loja pronta para
+// vender mais" no dashboard do lojista — calculadas em cima do estado real
+// (sem checklist manual/flag persistida), por isso não depende do filtro de
+// período do dashboard e vive num endpoint próprio.
+adminRouter.get('/pendencias', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const [loja, produtos] = await Promise.all([
+    prisma.loja.findUnique({
+      where: { id: lojaId },
+      select: {
+        horarioAbertura: true,
+        horarioFechamento: true,
+        abertoManual: true,
+        logoUrl: true,
+        endereco: true,
+      },
+    }),
+    prisma.produto.findMany({
+      where: { lojaId },
+      select: { fotoUrl: true, descricao: true },
+    }),
+  ]);
+  if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' });
+
+  res.json({ pendencias: montarPendenciasLoja({ ...loja, produtos }) });
 });
 
 // --- Categorias ---

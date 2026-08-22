@@ -217,6 +217,13 @@ export interface PedidoAcompanhamento {
   loja: { nome: string };
 }
 
+export interface Pendencia {
+  chave: string;
+  titulo: string;
+  descricao: string;
+  rota: string;
+}
+
 export interface DashboardResumo {
   periodo: { inicio: string; fim: string };
   faturamentoTotal: number;

@@ -233,6 +233,9 @@ export function PainelLoja() {
             {enviandoLogo && <span className="text-xs text-gray-500">Enviando...</span>}
           </div>
         </div>
+        <p className="-mt-2 text-xs text-gray-500">
+          Aparece no topo do cardápio público e ajuda o cliente a reconhecer a loja.
+        </p>
 
         <label className={LABEL}>Capa</label>
         <div className="flex flex-col gap-2">
@@ -270,6 +273,9 @@ export function PainelLoja() {
           onChange={(e) => setLoja({ ...loja, endereco: e.target.value })}
           placeholder="Rua, número, bairro, cidade"
         />
+        <p className="-mt-2 text-xs text-gray-500">
+          Aparece no rodapé do cardápio — útil pra quem for retirar o pedido no local.
+        </p>
 
         <label className={LABEL}>Chave Pix</label>
         <Input
@@ -307,6 +313,10 @@ export function PainelLoja() {
             />
           </div>
         </div>
+        <p className="-mt-2 text-xs text-gray-500">
+          Define quando o cardápio aparece aberto pros clientes no modo automático. Sem horário
+          cadastrado, o cardápio aparece sempre aberto.
+        </p>
 
         <label className={LABEL}>Status manual (sobrepõe o horário)</label>
         <Select
@@ -322,6 +332,10 @@ export function PainelLoja() {
           <option value="aberto">Forçar aberto</option>
           <option value="fechado">Forçar fechado</option>
         </Select>
+        <p className="-mt-2 text-xs text-gray-500">
+          No modo automático, a loja abre e fecha sozinha seguindo o horário configurado acima.
+          "Forçar aberto/fechado" ignora o horário até você voltar pro automático.
+        </p>
 
         <div className="mt-2 border-t pt-4">
           <h3 className="text-base font-semibold text-gray-800">Pedidos agendados / Encomendas</h3>

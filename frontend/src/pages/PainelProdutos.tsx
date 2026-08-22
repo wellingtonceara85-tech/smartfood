@@ -9,6 +9,7 @@ import { Loading } from '../components/ui/Loading';
 import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { api, enviarFoto } from '../lib/api';
+import { rotuloProdutoIncompleto } from '../lib/produto';
 import { Categoria, Produto } from '../types';
 
 interface FormularioProduto {
@@ -300,6 +301,9 @@ export function PainelProdutos() {
                     <Badge cor={produto.disponivel ? 'primary' : 'gray'}>
                       {produto.disponivel ? 'Disponível' : 'Indisponível'}
                     </Badge>
+                    {rotuloProdutoIncompleto(produto) && (
+                      <Badge cor="yellow">{rotuloProdutoIncompleto(produto)}</Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     <label className="flex items-center gap-1.5 text-sm text-gray-600">
@@ -360,6 +364,9 @@ export function PainelProdutos() {
               value={formulario.descricao}
               onChange={(e) => setFormulario({ ...formulario, descricao: e.target.value })}
             />
+            <p className="-mt-2 text-xs text-gray-500">
+              Ex: Acompanha arroz, feijão, macarrão, farofa e salada crua.
+            </p>
             <Input
               required
               placeholder="Preço (ex: 22.90)"
@@ -383,6 +390,7 @@ export function PainelProdutos() {
                   className="text-sm"
                 />
                 {enviandoFoto && <span className="text-xs text-gray-500">Enviando...</span>}
+                <span className="text-xs text-gray-500">Produtos com foto vendem mais.</span>
                 <span className="text-xs text-gray-500">
                   Recomendado: foto quadrada, mínimo 600x600px, produto centralizado
                 </span>
