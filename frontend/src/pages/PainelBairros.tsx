@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
@@ -6,8 +7,10 @@ import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Input } from '../components/ui/Input';
 import { Loading } from '../components/ui/Loading';
+import { EntregaPorDistancia } from '../components/painel/EntregaPorDistancia';
 import { api } from '../lib/api';
 import { BairroEntrega } from '../types';
+import { PainelLayoutContexto } from './PainelLayout';
 
 interface FormularioBairro {
   id?: string;
@@ -18,6 +21,7 @@ interface FormularioBairro {
 const formularioVazio: FormularioBairro = { nomeBairro: '', valorEntrega: '' };
 
 export function PainelBairros() {
+  const { loja, recarregarLoja } = useOutletContext<PainelLayoutContexto>();
   const [bairros, setBairros] = useState<BairroEntrega[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [formulario, setFormulario] = useState<FormularioBairro | null>(null);
@@ -104,6 +108,8 @@ export function PainelBairros() {
 
   return (
     <div className="flex flex-col gap-6">
+      {loja && <EntregaPorDistancia loja={loja} recarregarLoja={recarregarLoja} />}
+
       <section>
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800">Bairros de entrega</h2>

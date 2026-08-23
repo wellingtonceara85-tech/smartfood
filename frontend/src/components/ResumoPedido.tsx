@@ -38,6 +38,12 @@ interface Props {
   bairroSelecionadoId: string | null;
   aoMudarBairro: (id: string | null) => void;
   taxaEntrega: number;
+  modoEntregaDistancia: boolean;
+  clienteLocalizacao: { latitude: number; longitude: number } | null;
+  obtendoLocalizacao: boolean;
+  erroLocalizacao: string | null;
+  aoObterLocalizacao: () => void;
+  entregaPorDistanciaBloqueada: boolean;
   aceitaAgendamento: boolean;
   antecedenciaMinimaMinutos: number;
   tipoPedido: TipoPedido;
@@ -93,6 +99,12 @@ export function ResumoPedido({
   bairroSelecionadoId,
   aoMudarBairro,
   taxaEntrega,
+  modoEntregaDistancia,
+  clienteLocalizacao,
+  obtendoLocalizacao,
+  erroLocalizacao,
+  aoObterLocalizacao,
+  entregaPorDistanciaBloqueada,
   aceitaAgendamento,
   antecedenciaMinimaMinutos,
   tipoPedido,
@@ -132,7 +144,8 @@ export function ResumoPedido({
     }
   }
 
-  const entregaSemBairroEscolhido = formaRecebimento === 'entrega' && !bairroSelecionadoId;
+  const entregaSemBairroEscolhido =
+    formaRecebimento === 'entrega' && !modoEntregaDistancia && !bairroSelecionadoId;
   const trocoInvalido =
     formaPagamento === 'dinheiro' &&
     precisaTroco &&
@@ -335,7 +348,7 @@ export function ResumoPedido({
                 </div>
               )}
 
-              {bairros.length > 0 && (
+              {(bairros.length > 0 || modoEntregaDistancia) && (
                 <div className="mb-3">
                   <p className={RUBRICA}>Entrega</p>
                   <div className="flex flex-wrap items-center gap-2">
@@ -360,7 +373,7 @@ export function ResumoPedido({
                       </button>
                     </div>
 
-                    {formaRecebimento === 'entrega' && (
+                    {formaRecebimento === 'entrega' && !modoEntregaDistancia && (
                       <select
                         value={bairroSelecionadoId ?? ''}
                         onChange={(e) => aoMudarBairro(e.target.value || null)}
@@ -376,6 +389,77 @@ export function ResumoPedido({
                       </select>
                     )}
                   </div>
+
+                  {formaRecebimento === 'entrega' && modoEntregaDistancia && (
+                    <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                      {!clienteLocalizacao && (
+                        <>
+                          <p className="text-sm text-gray-600">
+                            Precisamos da sua localização pra calcular a taxa de entrega.
+                          </p>
+                          <Button
+                            type="button"
+                            tamanho="sm"
+                            variante="secondary"
+                            className="mt-2"
+                            onClick={aoObterLocalizacao}
+                            disabled={obtendoLocalizacao}
+                          >
+                            {obtendoLocalizacao
+                              ? 'Obtendo localização...'
+                              : '📍 Usar minha localização'}
+                          </Button>
+                        </>
+                      )}
+
+                      {clienteLocalizacao && !entregaPorDistanciaBloqueada && (
+                        <p className="text-sm font-medium text-gray-800">
+                          {taxaEntrega === 0
+                            ? '🎉 Entrega grátis — você está dentro da área de entrega gratuita.'
+                            : `Taxa de entrega estimada: ${formatarValorEntrega(taxaEntrega)}`}
+                        </p>
+                      )}
+
+                      {clienteLocalizacao && entregaPorDistanciaBloqueada && (
+                        <>
+                          <p className="text-sm font-medium text-red-600">
+                            Este endereço está fora da área de entrega desta loja.
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              tamanho="sm"
+                              variante="secondary"
+                              onClick={aoObterLocalizacao}
+                              disabled={obtendoLocalizacao}
+                            >
+                              Tentar novamente
+                            </Button>
+                            <Button
+                              type="button"
+                              tamanho="sm"
+                              onClick={() => aoMudarFormaRecebimento('retirada')}
+                            >
+                              Retirar no local
+                            </Button>
+                          </div>
+                        </>
+                      )}
+
+                      {erroLocalizacao && (
+                        <p className={ERRO_CAMPO}>
+                          {erroLocalizacao}{' '}
+                          <button
+                            type="button"
+                            onClick={() => aoMudarFormaRecebimento('retirada')}
+                            className="ml-1 underline"
+                          >
+                            Retirar no local
+                          </button>
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -495,6 +579,25 @@ export function ResumoPedido({
                           placeholder="Complemento (opcional)"
                         />
                       </div>
+
+                      {/* Só no modo distância: no modo bairro, endereco.bairro vem do <select> acima (fonte única, cliente nunca digita). */}
+                      {modoEntregaDistancia && (
+                        <div>
+                          <Input
+                            value={endereco.bairro}
+                            onChange={(e) => aoMudarEndereco('bairro', e.target.value)}
+                            placeholder="Bairro"
+                            className={
+                              mostrarErrosEndereco && !endereco.bairro.trim()
+                                ? 'border-red-400'
+                                : ''
+                            }
+                          />
+                          {mostrarErrosEndereco && !endereco.bairro.trim() && (
+                            <p className={ERRO_CAMPO}>Informe o bairro</p>
+                          )}
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-[2fr_1fr] gap-2">
                         <div>
@@ -683,6 +786,7 @@ export function ResumoPedido({
                     itens.length === 0 ||
                     finalizando ||
                     entregaSemBairroEscolhido ||
+                    (formaRecebimento === 'entrega' && entregaPorDistanciaBloqueada) ||
                     trocoInvalido ||
                     cartaoSemTipo ||
                     agendamentoInvalido

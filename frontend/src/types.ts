@@ -23,6 +23,12 @@ export interface BairroEntrega {
   ativo?: boolean;
 }
 
+export interface FaixaEntregaDistancia {
+  id: string;
+  distanciaMaxMetros: number;
+  valorEntrega: number;
+}
+
 export interface LojaPublica {
   id: string;
   nome: string;
@@ -42,6 +48,10 @@ export interface LojaPublica {
   corSecundaria: string;
   categorias: Categoria[];
   bairrosEntrega: BairroEntrega[];
+  calcularEntregaPorDistancia: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  faixasEntregaDistancia: FaixaEntregaDistancia[];
 }
 
 export type NivelAlertaTrial = 'ok' | 'moderado' | 'critico' | 'expirado' | 'sem_trial';
@@ -67,10 +77,14 @@ export interface Loja {
   horarioAbertura: string | null;
   horarioFechamento: string | null;
   abertoManual: boolean | null;
+  aberto: boolean;
   corPrimaria: string;
   corSecundaria: string;
   aceitaAgendamento: boolean;
   antecedenciaMinimaMinutos: number;
+  latitude: number | null;
+  longitude: number | null;
+  calcularEntregaPorDistancia: boolean;
   trial: TrialInfo;
 }
 

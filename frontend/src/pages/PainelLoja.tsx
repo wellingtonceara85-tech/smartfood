@@ -33,6 +33,8 @@ export function PainelLoja() {
   const [corSecundariaTexto, setCorSecundariaTexto] = useState('');
   const [antecedenciaValor, setAntecedenciaValor] = useState(0);
   const [antecedenciaUnidade, setAntecedenciaUnidade] = useState<'minutos' | 'horas'>('horas');
+  const [capturandoLocalizacao, setCapturandoLocalizacao] = useState(false);
+  const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
 
   const inputLogoRef = useRef<HTMLInputElement>(null);
   const inputCapaRef = useRef<HTMLInputElement>(null);
@@ -78,6 +80,8 @@ export function PainelLoja() {
           logoUrl: loja.logoUrl || null,
           capaUrl: loja.capaUrl || null,
           endereco: loja.endereco || null,
+          latitude: loja.latitude,
+          longitude: loja.longitude,
           chavePix: loja.chavePix || null,
           telefoneWhatsapp: loja.telefoneWhatsapp,
           horarioAbertura: loja.horarioAbertura || null,
@@ -170,6 +174,40 @@ export function PainelLoja() {
     if (!loja) return;
     const minutos = antecedenciaUnidade === 'horas' ? valor * 60 : valor;
     setLoja({ ...loja, antecedenciaMinimaMinutos: minutos });
+  }
+
+  // Só sob clique explícito do lojista — nunca solicitada automaticamente ao
+  // abrir a tela. Sem geocoding: é o próprio botão que grava a coordenada,
+  // então o lojista precisa estar fisicamente na loja ao clicar.
+  function usarMinhaLocalizacao() {
+    if (!loja) return;
+    if (!navigator.geolocation) {
+      setErroLocalizacao('Seu navegador não suporta localização.');
+      return;
+    }
+    setCapturandoLocalizacao(true);
+    setErroLocalizacao(null);
+    navigator.geolocation.getCurrentPosition(
+      (posicao) => {
+        setLoja((atual) =>
+          atual
+            ? {
+                ...atual,
+                latitude: posicao.coords.latitude,
+                longitude: posicao.coords.longitude,
+              }
+            : atual,
+        );
+        setCapturandoLocalizacao(false);
+      },
+      () => {
+        setErroLocalizacao(
+          'Não foi possível obter sua localização. Verifique a permissão do navegador e tente novamente.',
+        );
+        setCapturandoLocalizacao(false);
+      },
+      { enableHighAccuracy: true, timeout: 15_000 },
+    );
   }
 
   function aoMudarAntecedenciaUnidade(unidade: 'minutos' | 'horas') {
@@ -276,6 +314,43 @@ export function PainelLoja() {
         <p className="-mt-2 text-xs text-gray-500">
           Aparece no rodapé do cardápio — útil pra quem for retirar o pedido no local.
         </p>
+
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+          <p className={LABEL}>Localização da loja</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Usada como ponto de partida para calcular a taxa de entrega por distância (opcional, na
+            tela Entrega). Estando na loja, clique no botão abaixo — não convertemos o endereço em
+            texto automaticamente.
+          </p>
+
+          {loja.latitude !== null && loja.longitude !== null ? (
+            <p className="mt-2 text-sm text-gray-700">
+              📍 {loja.latitude.toFixed(6)}, {loja.longitude.toFixed(6)}{' '}
+              <a
+                href={`https://maps.google.com/?q=${loja.latitude},${loja.longitude}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary-hover hover:underline"
+              >
+                ver no mapa
+              </a>
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-gray-400">Localização ainda não configurada.</p>
+          )}
+
+          <Button
+            type="button"
+            variante="secondary"
+            tamanho="sm"
+            className="mt-2"
+            onClick={usarMinhaLocalizacao}
+            disabled={capturandoLocalizacao}
+          >
+            {capturandoLocalizacao ? 'Obtendo localização...' : '📍 Usar minha localização'}
+          </Button>
+          {erroLocalizacao && <p className="mt-1.5 text-xs text-red-600">{erroLocalizacao}</p>}
+        </div>
 
         <label className={LABEL}>Chave Pix</label>
         <Input

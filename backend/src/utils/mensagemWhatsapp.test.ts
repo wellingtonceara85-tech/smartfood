@@ -45,6 +45,33 @@ test('mensagem de Entrega inclui o bloco de endereço', () => {
   assert.match(mensagem, /Entrega - Centro/);
 });
 
+test('mensagem de Entrega por distância (sem bairro) não imprime "null"', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    itensBase,
+    22.9,
+    {
+      forma: 'entrega',
+      bairroNome: null,
+      valorEntrega: 0,
+      endereco: {
+        cep: '60000000',
+        logradouro: 'Rua Exemplo',
+        numero: '123',
+        complemento: null,
+        bairro: 'Aldeota',
+        cidade: 'Fortaleza',
+        estado: 'CE',
+        referencia: null,
+      },
+    },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /Forma de recebimento: Entrega \(Grátis\)/);
+  assert.doesNotMatch(mensagem, /null/);
+});
+
 test('mensagem de Entrega sem complemento/referência omite essas linhas', () => {
   const mensagem = montarMensagemPedido(
     'Lanchonete Teste',

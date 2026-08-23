@@ -76,13 +76,23 @@ model Loja {
   // trialFimEm pode ser prorrogado pelo Admin Master; trialInicioEm nunca muda depois de setado.
   trialInicioEm             DateTime? @map("trial_inicio_em")
   trialFimEm                DateTime? @map("trial_fim_em")
+  // Origem (loja) para cálculo de distância aproximada até o cliente — só
+  // preenchida via botão "Usar minha localização" (Geolocation API do
+  // navegador) no painel, nunca por geocoding automático do endereço em texto.
+  latitude                  Float?   @map("latitude")
+  longitude                 Float?   @map("longitude")
+  // Liga a segunda estratégia de taxa de entrega (por distância/faixas) no
+  // lugar da estratégia por bairro. Default false: lojas existentes continuam
+  // exatamente no fluxo de bairro, sem qualquer mudança de comportamento.
+  calcularEntregaPorDistancia Boolean @default(false) @map("calcular_entrega_por_distancia")
   criadoEm                  DateTime @default(now()) @map("criado_em")
 
-  usuarios       Usuario[]
-  categorias     Categoria[]
-  produtos       Produto[]
-  pedidos        Pedido[]
-  bairrosEntrega BairroEntrega[]
+  usuarios                Usuario[]
+  categorias              Categoria[]
+  produtos                Produto[]
+  pedidos                 Pedido[]
+  bairrosEntrega          BairroEntrega[]
+  faixasEntregaDistancia  FaixaEntregaDistancia[]
 
   @@map("lojas")
 }
@@ -144,6 +154,12 @@ model Pedido {
   tipoPedido         String    @default("imediato") @map("tipo_pedido")
   dataAgendamento    DateTime? @map("data_agendamento")
   total              Decimal   @db.Decimal(10, 2)
+  // Snapshot de como a taxa por distância foi calculada nesse pedido — só
+  // preenchidos quando formaRecebimento é entrega e a loja usa esse modo.
+  // Faixas futuras da loja nunca recalculam um pedido já criado.
+  clienteLatitude        Float?  @map("cliente_latitude")
+  clienteLongitude       Float?  @map("cliente_longitude")
+  entregaDistanciaMetros Int?    @map("entrega_distancia_metros")
   criadoEm           DateTime  @default(now()) @map("criado_em")
 
   @@map("pedidos")
@@ -159,4 +175,18 @@ model BairroEntrega {
   criadoEm     DateTime @default(now()) @map("criado_em")
 
   @@map("bairros_entrega")
+}
+
+// Faixas de "até X metros -> R$ Y" configuradas pela loja quando
+// calcularEntregaPorDistancia está ligado. Distância é sempre aproximada em
+// linha reta (Haversine) — ver backend/src/utils/distancia.ts.
+model FaixaEntregaDistancia {
+  id                 String   @id @default(uuid())
+  lojaId             String   @map("loja_id")
+  loja               Loja     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  distanciaMaxMetros Int      @map("distancia_max_metros")
+  valorEntrega       Decimal  @map("valor_entrega") @db.Decimal(10, 2)
+  criadoEm           DateTime @default(now()) @map("criado_em")
+
+  @@map("faixas_entrega_distancia")
 }

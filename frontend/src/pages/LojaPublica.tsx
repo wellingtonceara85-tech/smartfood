@@ -9,6 +9,7 @@ import { ResumoPedido } from '../components/ResumoPedido';
 import { agendamentoPareceValido } from '../lib/agendamento';
 import { api } from '../lib/api';
 import { montarVariaveisTema } from '../lib/cor';
+import { distanciaAproximadaMetros, resolverTaxaPorDistancia } from '../lib/distancia';
 import { cepValido, EnderecoEntrega, telefoneValido } from '../lib/endereco';
 import {
   FormaPagamento,
@@ -75,6 +76,12 @@ export function LojaPublica() {
   const [erroPedido, setErroPedido] = useState<string | null>(null);
   const [formaRecebimento, setFormaRecebimento] = useState<'entrega' | 'retirada'>('retirada');
   const [bairroSelecionadoId, setBairroSelecionadoId] = useState<string | null>(null);
+  const [clienteLocalizacao, setClienteLocalizacao] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [obtendoLocalizacao, setObtendoLocalizacao] = useState(false);
+  const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
   const [resumoAberto, setResumoAberto] = useState(false);
   const [endereco, setEndereco] = useState<EnderecoEntrega>(ENDERECO_VAZIO);
   const [enderecoSalvo, setEnderecoSalvo] = useState<EnderecoEntrega | null>(null);
@@ -323,7 +330,39 @@ export function LojaPublica() {
   const itensCarrinho = Object.values(carrinho);
   const subtotal = itensCarrinho.reduce((soma, item) => soma + item.preco * item.quantidade, 0);
   const bairroSelecionado = loja?.bairrosEntrega.find((b) => b.id === bairroSelecionadoId) ?? null;
-  const taxaEntrega = formaRecebimento === 'entrega' ? (bairroSelecionado?.valorEntrega ?? 0) : 0;
+
+  // Loja com o recurso ligado usa distância (linha reta aproximada) em vez de
+  // bairro — nunca as duas estratégias ao mesmo tempo. Sem loja com
+  // latitude/longitude ou sem localização do cliente ainda capturada, não dá
+  // pra estimar nada (mostrado como "obtenha sua localização", não como R$ 0).
+  const modoEntregaDistancia = loja?.calcularEntregaPorDistancia ?? false;
+  const resultadoDistancia = useMemo(() => {
+    if (!modoEntregaDistancia || !loja || loja.latitude === null || loja.longitude === null) {
+      return null;
+    }
+    if (!clienteLocalizacao) return null;
+    const distanciaMetros = distanciaAproximadaMetros(
+      loja.latitude,
+      loja.longitude,
+      clienteLocalizacao.latitude,
+      clienteLocalizacao.longitude,
+    );
+    return resolverTaxaPorDistancia(loja.faixasEntregaDistancia, distanciaMetros);
+  }, [modoEntregaDistancia, loja, clienteLocalizacao]);
+
+  const entregaPorDistanciaBloqueada =
+    formaRecebimento === 'entrega' &&
+    modoEntregaDistancia &&
+    (!resultadoDistancia || !resultadoDistancia.ok);
+
+  const taxaEntrega =
+    formaRecebimento !== 'entrega'
+      ? 0
+      : modoEntregaDistancia
+        ? resultadoDistancia?.ok
+          ? resultadoDistancia.valorEntrega
+          : 0
+        : (bairroSelecionado?.valorEntrega ?? 0);
   const total = subtotal + taxaEntrega;
   const enderecoValido =
     cepValido(endereco.cep) &&
@@ -336,10 +375,41 @@ export function LojaPublica() {
   // Fonte única do bairro: o cliente escolhe numa lista (nunca digita), e a
   // escolha alimenta tanto a taxa de entrega quanto o campo bairro do
   // endereço — não existem mais dois controles de bairro desencontrados.
+  // Só se aplica no modo bairro — no modo distância o cliente digita o bairro
+  // livremente, junto do resto do endereço.
   function mudarBairroSelecionado(id: string | null) {
     setBairroSelecionadoId(id);
     const bairro = loja?.bairrosEntrega.find((b) => b.id === id);
     setEndereco((atual) => ({ ...atual, bairro: bairro?.nomeBairro ?? '' }));
+  }
+
+  // Só sob clique explícito (botão "Usar minha localização") — nunca
+  // solicitada automaticamente ao abrir o checkout. Se o cliente negar, a
+  // Entrega fica bloqueada (nunca inventamos uma taxa), mas Retirada continua
+  // disponível — o checkout não fica preso.
+  function obterLocalizacaoCliente() {
+    if (!navigator.geolocation) {
+      setErroLocalizacao('Seu navegador não suporta localização.');
+      return;
+    }
+    setObtendoLocalizacao(true);
+    setErroLocalizacao(null);
+    navigator.geolocation.getCurrentPosition(
+      (posicao) => {
+        setClienteLocalizacao({
+          latitude: posicao.coords.latitude,
+          longitude: posicao.coords.longitude,
+        });
+        setObtendoLocalizacao(false);
+      },
+      () => {
+        setErroLocalizacao(
+          'Não conseguimos obter sua localização. Tente novamente ou escolha Retirada.',
+        );
+        setObtendoLocalizacao(false);
+      },
+      { enableHighAccuracy: true, timeout: 15_000 },
+    );
   }
 
   function removerDadosSalvos() {
@@ -355,7 +425,10 @@ export function LojaPublica() {
   async function finalizarPedido() {
     setTentouEnviar(true);
     if (!slug || itensCarrinho.length === 0 || !nome.trim() || !telefoneValido(telefone)) return;
-    if (formaRecebimento === 'entrega' && !bairroSelecionadoId) return;
+    if (formaRecebimento === 'entrega' && !modoEntregaDistancia && !bairroSelecionadoId) return;
+    if (formaRecebimento === 'entrega' && modoEntregaDistancia && entregaPorDistanciaBloqueada) {
+      return;
+    }
     if (formaRecebimento === 'entrega' && !enderecoValido) return;
     if (formaPagamento === 'cartao' && !tipoCartao) return;
     if (formaPagamento === 'dinheiro' && precisaTroco && !trocoPara.trim()) return;
@@ -387,8 +460,11 @@ export function LojaPublica() {
             observacao: item.observacao,
           })),
           formaRecebimento,
-          bairroEntregaId: formaRecebimento === 'entrega' ? bairroSelecionadoId : null,
+          bairroEntregaId:
+            formaRecebimento === 'entrega' && !modoEntregaDistancia ? bairroSelecionadoId : null,
           enderecoEntrega: formaRecebimento === 'entrega' ? endereco : null,
+          clienteLocalizacao:
+            formaRecebimento === 'entrega' && modoEntregaDistancia ? clienteLocalizacao : null,
           formaPagamento,
           precisaTroco: formaPagamento === 'dinheiro' ? precisaTroco : null,
           trocoPara:
@@ -478,7 +554,11 @@ export function LojaPublica() {
         {itensCarrinho.length > 0 && (
           <CardEntregaTopo
             formaRecebimento={formaRecebimento}
-            bairroNome={bairroSelecionado?.nomeBairro ?? null}
+            bairroNome={
+              modoEntregaDistancia
+                ? endereco.bairro.trim() || endereco.logradouro.trim() || null
+                : (bairroSelecionado?.nomeBairro ?? null)
+            }
             valorEntrega={taxaEntrega}
             aoAlterar={() => setResumoAberto(true)}
           />
@@ -594,6 +674,12 @@ export function LojaPublica() {
           bairroSelecionadoId={bairroSelecionadoId}
           aoMudarBairro={mudarBairroSelecionado}
           taxaEntrega={taxaEntrega}
+          modoEntregaDistancia={modoEntregaDistancia}
+          clienteLocalizacao={clienteLocalizacao}
+          obtendoLocalizacao={obtendoLocalizacao}
+          erroLocalizacao={erroLocalizacao}
+          aoObterLocalizacao={obterLocalizacaoCliente}
+          entregaPorDistanciaBloqueada={entregaPorDistanciaBloqueada}
           aceitaAgendamento={loja.aceitaAgendamento}
           antecedenciaMinimaMinutos={loja.antecedenciaMinimaMinutos}
           tipoPedido={tipoPedido}

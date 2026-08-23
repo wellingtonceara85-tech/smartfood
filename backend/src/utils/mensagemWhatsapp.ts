@@ -83,9 +83,12 @@ export function montarMensagemPedido(
     }
   }
 
+  // Sem bairroNome (entrega calculada por distância, sem seleção de bairro):
+  // omite o trecho do bairro em vez de imprimir "null" — o endereço completo
+  // já aparece logo abaixo.
   const linhaRecebimento =
     recebimento.forma === 'entrega'
-      ? `Forma de recebimento: Entrega - ${recebimento.bairroNome} (${moedaOuGratis(recebimento.valorEntrega ?? 0)})`
+      ? `Forma de recebimento: Entrega${recebimento.bairroNome ? ` - ${recebimento.bairroNome}` : ''} (${moedaOuGratis(recebimento.valorEntrega ?? 0)})`
       : 'Forma de recebimento: Retirada no local';
 
   linhas.push('', linhaRecebimento);

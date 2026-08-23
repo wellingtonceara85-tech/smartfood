@@ -1,9 +1,11 @@
-import { BairroEntrega, Pedido, Prisma, Produto } from '@prisma/client';
+import { BairroEntrega, FaixaEntregaDistancia, Pedido, Prisma, Produto } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
 import { prisma } from '../prisma';
 import { HEX_REGEX, normalizarCor } from '../utils/cor';
+import { latitudeValida, longitudeValida, validarFaixasEntrega } from '../utils/distancia';
+import { calcularAberto } from '../utils/horario';
 import { montarPendenciasLoja } from '../utils/pendenciasLoja';
 import { calcularTrial } from '../utils/trial';
 
@@ -18,6 +20,10 @@ function serializarProduto(produto: Produto) {
 
 function serializarBairro(bairro: BairroEntrega) {
   return { ...bairro, valorEntrega: Number(bairro.valorEntrega) };
+}
+
+function serializarFaixaEntrega(faixa: FaixaEntregaDistancia) {
+  return { ...faixa, valorEntrega: Number(faixa.valorEntrega) };
 }
 
 function serializarPedido(pedido: Pedido) {
@@ -54,25 +60,51 @@ adminRouter.get('/loja', async (req, res) => {
 
   const loja = await prisma.loja.findUnique({ where: { id: lojaId } });
   if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' });
-  res.json({ ...loja, trial: calcularTrial(loja.trialInicioEm, loja.trialFimEm) });
+  res.json({
+    ...loja,
+    aberto: calcularAberto(loja),
+    trial: calcularTrial(loja.trialInicioEm, loja.trialFimEm),
+  });
 });
 
-const atualizarLojaSchema = z.object({
-  nome: z.string().min(1).optional(),
-  tagline: z.string().nullable().optional(),
-  logoUrl: z.string().url().nullable().optional(),
-  capaUrl: z.string().url().nullable().optional(),
-  endereco: z.string().nullable().optional(),
-  chavePix: z.string().nullable().optional(),
-  telefoneWhatsapp: z.string().min(8).optional(),
-  horarioAbertura: z.string().nullable().optional(),
-  horarioFechamento: z.string().nullable().optional(),
-  abertoManual: z.boolean().nullable().optional(),
-  corPrimaria: corHexSchema.optional(),
-  corSecundaria: corHexSchema.optional(),
-  aceitaAgendamento: z.boolean().optional(),
-  antecedenciaMinimaMinutos: z.number().int().nonnegative().optional(),
-});
+const coordenadaSchema = z
+  .number()
+  .nullable()
+  .optional()
+  .refine((valor) => valor === null || valor === undefined || Number.isFinite(valor), {
+    message: 'Coordenada inválida',
+  });
+
+const atualizarLojaSchema = z
+  .object({
+    nome: z.string().min(1).optional(),
+    tagline: z.string().nullable().optional(),
+    logoUrl: z.string().url().nullable().optional(),
+    capaUrl: z.string().url().nullable().optional(),
+    endereco: z.string().nullable().optional(),
+    chavePix: z.string().nullable().optional(),
+    telefoneWhatsapp: z.string().min(8).optional(),
+    horarioAbertura: z.string().nullable().optional(),
+    horarioFechamento: z.string().nullable().optional(),
+    abertoManual: z.boolean().nullable().optional(),
+    corPrimaria: corHexSchema.optional(),
+    corSecundaria: corHexSchema.optional(),
+    aceitaAgendamento: z.boolean().optional(),
+    antecedenciaMinimaMinutos: z.number().int().nonnegative().optional(),
+    latitude: coordenadaSchema,
+    longitude: coordenadaSchema,
+    calcularEntregaPorDistancia: z.boolean().optional(),
+  })
+  .refine(
+    (dados) =>
+      dados.latitude === null || dados.latitude === undefined || latitudeValida(dados.latitude),
+    { message: 'Latitude inválida', path: ['latitude'] },
+  )
+  .refine(
+    (dados) =>
+      dados.longitude === null || dados.longitude === undefined || longitudeValida(dados.longitude),
+    { message: 'Longitude inválida', path: ['longitude'] },
+  );
 
 adminRouter.put('/loja', async (req, res) => {
   const lojaId = lojaIdOuErro(req, res);
@@ -82,8 +114,31 @@ adminRouter.put('/loja', async (req, res) => {
   if (!parsed.success)
     return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
 
+  // Não dá pra ligar o cálculo por distância sem uma origem — evita o estado
+  // impossível de "ligado mas sem latitude/longitude" em vez de deixar pra
+  // barrar isso só na hora de calcular o pedido.
+  if (parsed.data.calcularEntregaPorDistancia) {
+    const atual = await prisma.loja.findUnique({
+      where: { id: lojaId },
+      select: { latitude: true, longitude: true },
+    });
+    const latitude = parsed.data.latitude !== undefined ? parsed.data.latitude : atual?.latitude;
+    const longitude =
+      parsed.data.longitude !== undefined ? parsed.data.longitude : atual?.longitude;
+    if (
+      latitude === null ||
+      latitude === undefined ||
+      longitude === null ||
+      longitude === undefined
+    ) {
+      return res.status(400).json({
+        erro: 'Configure a localização da loja antes de ativar o cálculo por distância.',
+      });
+    }
+  }
+
   const loja = await prisma.loja.update({ where: { id: lojaId }, data: parsed.data });
-  res.json(loja);
+  res.json({ ...loja, aberto: calcularAberto(loja) });
 });
 
 // Pendências de configuração da loja pro card "Deixe sua loja pronta para
@@ -340,6 +395,57 @@ adminRouter.delete('/bairros/:id', async (req, res) => {
 
   await prisma.bairroEntrega.delete({ where: { id: existente.id } });
   res.status(204).send();
+});
+
+// --- Faixas de entrega por distância ---
+//
+// Estratégia alternativa à de bairro, opt-in via loja.calcularEntregaPorDistancia.
+// A lista inteira é salva de uma vez (não há CRUD item a item): a ordem e a
+// ausência de sobreposição entre faixas importam pro cálculo, então é mais
+// simples e mais seguro validar e substituir o conjunto completo do que
+// reconciliar edições parciais.
+
+adminRouter.get('/faixas-entrega', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const faixas = await prisma.faixaEntregaDistancia.findMany({
+    where: { lojaId },
+    orderBy: { distanciaMaxMetros: 'asc' },
+  });
+  res.json(faixas.map(serializarFaixaEntrega));
+});
+
+const faixaEntregaSchema = z.object({
+  distanciaMaxMetros: z.number().int().positive(),
+  valorEntrega: z.number().nonnegative(),
+});
+
+const salvarFaixasEntregaSchema = z.object({
+  faixas: z.array(faixaEntregaSchema),
+});
+
+adminRouter.put('/faixas-entrega', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = salvarFaixasEntregaSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const validacao = validarFaixasEntrega(parsed.data.faixas);
+  if (!validacao.valido) return res.status(400).json({ erro: validacao.erro });
+
+  const [, faixas] = await prisma.$transaction([
+    prisma.faixaEntregaDistancia.deleteMany({ where: { lojaId } }),
+    prisma.faixaEntregaDistancia.createManyAndReturn({
+      data: parsed.data.faixas.map((faixa) => ({ ...faixa, lojaId })),
+    }),
+  ]);
+
+  res.json(
+    faixas.map(serializarFaixaEntrega).sort((a, b) => a.distanciaMaxMetros - b.distanciaMaxMetros),
+  );
 });
 
 // --- Pedidos ---

@@ -12,11 +12,13 @@ import {
 import { conviteValido, hashToken } from '../utils/convite';
 import { dataFimTrial } from '../utils/trial';
 import { COR_PRIMARIA_PADRAO, COR_SECUNDARIA_PADRAO, corOuPadrao } from '../utils/cor';
+import { coordenadaValida } from '../utils/distancia';
 import {
   EnderecoEntregaNormalizado,
   normalizarTelefone,
   validarEnderecoEntrega,
 } from '../utils/endereco';
+import { calcularTaxaEntregaPorDistancia } from '../utils/entregaPedido';
 import { calcularAberto } from '../utils/horario';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
@@ -49,6 +51,9 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
         where: { ativo: true },
         orderBy: { nomeBairro: 'asc' },
       },
+      faixasEntregaDistancia: {
+        orderBy: { distanciaMaxMetros: 'asc' },
+      },
     },
   });
 
@@ -77,6 +82,17 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
       id: bairro.id,
       nomeBairro: bairro.nomeBairro,
       valorEntrega: Number(bairro.valorEntrega),
+    })),
+    // Estratégia por distância é opt-in (loja.calcularEntregaPorDistancia) —
+    // quando desligada, latitude/longitude/faixas não importam pro checkout,
+    // que segue 100% no fluxo de bairro de sempre.
+    calcularEntregaPorDistancia: loja.calcularEntregaPorDistancia,
+    latitude: loja.latitude,
+    longitude: loja.longitude,
+    faixasEntregaDistancia: loja.faixasEntregaDistancia.map((faixa) => ({
+      id: faixa.id,
+      distanciaMaxMetros: faixa.distanciaMaxMetros,
+      valorEntrega: Number(faixa.valorEntrega),
     })),
     categorias: loja.categorias.map((categoria) => ({
       id: categoria.id,
@@ -166,6 +182,15 @@ const enderecoEntregaSchema = z.object({
   referencia: z.string().nullable().optional(),
 });
 
+const clienteLocalizacaoSchema = z
+  .object({
+    latitude: z.number(),
+    longitude: z.number(),
+  })
+  .refine((valor) => coordenadaValida(valor.latitude, valor.longitude), {
+    message: 'Localização inválida',
+  });
+
 const criarPedidoSchema = z.object({
   clienteNome: z.string().min(1),
   clienteTelefone: z.string().transform((valor, ctx) => {
@@ -180,6 +205,7 @@ const criarPedidoSchema = z.object({
   formaRecebimento: z.enum(['entrega', 'retirada']),
   bairroEntregaId: z.string().uuid().nullable().optional(),
   enderecoEntrega: enderecoEntregaSchema.nullable().optional(),
+  clienteLocalizacao: clienteLocalizacaoSchema.nullable().optional(),
   formaPagamento: z.enum(['dinheiro', 'cartao', 'pix']),
   precisaTroco: z.boolean().nullable().optional(),
   trocoPara: z.number().positive().nullable().optional(),
@@ -266,8 +292,37 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
   let valorEntrega = 0;
   let bairroEntregaNome: string | null = null;
   let enderecoValidado: EnderecoEntregaNormalizado | null = null;
+  let clienteLatitude: number | null = null;
+  let clienteLongitude: number | null = null;
+  let entregaDistanciaMetros: number | null = null;
 
-  if (parsed.data.formaRecebimento === 'entrega') {
+  if (parsed.data.formaRecebimento === 'entrega' && loja.calcularEntregaPorDistancia) {
+    // Loja usa a estratégia por distância — bairro não entra em jogo aqui.
+    // Endereço em texto continua obrigatório (mensagem do WhatsApp e
+    // referência do entregador não dependem de coordenadas).
+    const resultadoEndereco = validarEnderecoEntrega(parsed.data.enderecoEntrega);
+    if (!resultadoEndereco.valido) {
+      return res.status(400).json({ erro: resultadoEndereco.erro });
+    }
+    enderecoValidado = resultadoEndereco.endereco;
+
+    const faixas = await prisma.faixaEntregaDistancia.findMany({ where: { lojaId: loja.id } });
+    const resultadoDistancia = calcularTaxaEntregaPorDistancia(
+      loja,
+      faixas.map((f) => ({
+        distanciaMaxMetros: f.distanciaMaxMetros,
+        valorEntrega: Number(f.valorEntrega),
+      })),
+      parsed.data.clienteLocalizacao,
+    );
+    if (!resultadoDistancia.ok) {
+      return res.status(400).json({ erro: resultadoDistancia.erro });
+    }
+    valorEntrega = resultadoDistancia.valorEntrega;
+    entregaDistanciaMetros = resultadoDistancia.distanciaMetros;
+    clienteLatitude = resultadoDistancia.clienteLatitude;
+    clienteLongitude = resultadoDistancia.clienteLongitude;
+  } else if (parsed.data.formaRecebimento === 'entrega') {
     if (!parsed.data.bairroEntregaId) {
       return res.status(400).json({ erro: 'Selecione um bairro para entrega' });
     }
@@ -320,9 +375,14 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       itens: itensResolvidos,
       formaRecebimento: parsed.data.formaRecebimento,
       bairroEntregaId:
-        parsed.data.formaRecebimento === 'entrega' ? parsed.data.bairroEntregaId : null,
+        parsed.data.formaRecebimento === 'entrega' && !loja.calcularEntregaPorDistancia
+          ? parsed.data.bairroEntregaId
+          : null,
       bairroEntregaNome,
       valorEntrega,
+      clienteLatitude,
+      clienteLongitude,
+      entregaDistanciaMetros,
       formaPagamento: parsed.data.formaPagamento,
       precisaTroco:
         parsed.data.formaPagamento === 'dinheiro' ? (parsed.data.precisaTroco ?? false) : null,

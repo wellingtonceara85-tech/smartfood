@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Loading } from '../components/ui/Loading';
+import { StatusLojaCard } from '../components/painel/StatusLojaCard';
 import { api } from '../lib/api';
+import { PainelLayoutContexto } from './PainelLayout';
 import { DashboardResumo, Pendencia, PedidoAdmin, Produto } from '../types';
 
 function formatarISO(data: Date): string {
@@ -44,6 +46,7 @@ function StatCard({ titulo, valor }: StatCardProps) {
 }
 
 export function PainelDashboard() {
+  const { loja } = useOutletContext<PainelLayoutContexto>();
   const [dataInicio, setDataInicio] = useState(hojeISO());
   const [dataFim, setDataFim] = useState(hojeISO());
   const [periodoAtivo, setPeriodoAtivo] = useState<'hoje' | '7dias' | 'mes' | 'custom'>('hoje');
@@ -99,6 +102,17 @@ export function PainelDashboard() {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold text-gray-800">Dashboard</h2>
+
+      {loja && (
+        <div className="lg:hidden">
+          <StatusLojaCard
+            slug={loja.slug}
+            aberto={loja.aberto}
+            abertoManual={loja.abertoManual}
+            compacto
+          />
+        </div>
+      )}
 
       {pendencias.length > 0 && (
         <Card className="border border-yellow-200 bg-yellow-50">
@@ -181,7 +195,7 @@ export function PainelDashboard() {
 
       {!carregando && resumo && (
         <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard titulo="Faturamento" valor={`R$ ${resumo.faturamentoTotal.toFixed(2)}`} />
             <StatCard titulo="Pedidos no período" valor={String(resumo.totalPedidos)} />
             <StatCard titulo="Ticket médio" valor={`R$ ${resumo.ticketMedio.toFixed(2)}`} />
