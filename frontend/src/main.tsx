@@ -14,3 +14,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+// Necessário pro app ser considerado instalável (critério do Chrome/Android
+// pra "Adicionar à tela inicial" abrir em modo standalone). Não registra em
+// dev (localhost também é contexto seguro, mas não há motivo pra rodar o SW
+// fora de produção) nem quebra nada se falhar.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}

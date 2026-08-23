@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmartFood — Cardápio digital</title>
+
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#16A34A" />
+
+    <!-- iOS: sem essa tag, "Adicionar à Tela de Início" abre com a interface
+         completa do Safari em vez de modo app (standalone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SmartFood" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Equivalente moderno/cross-platform da tag acima, pra Android/Chrome. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
   </head>
   <body>
     <div id="root"></div>

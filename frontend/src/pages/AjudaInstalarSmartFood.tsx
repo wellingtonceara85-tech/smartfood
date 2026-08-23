@@ -3,8 +3,9 @@ import { Card } from '../components/ui/Card';
 const PASSOS_IPHONE = [
   {
     numero: 1,
-    titulo: 'Abra o SmartFood no Safari',
-    descricao: 'A instalação só funciona pelo navegador Safari — não funciona no Chrome do iPhone.',
+    titulo: 'Abra a tela de login do SmartFood no Safari',
+    descricao:
+      'A instalação só funciona pelo navegador Safari (não funciona no Chrome do iPhone). Volte pra tela de login ou pro painel antes do próximo passo — é essa página que abrirá quando você tocar no ícone depois.',
   },
   {
     numero: 2,
@@ -26,8 +27,9 @@ const PASSOS_IPHONE = [
 const PASSOS_ANDROID = [
   {
     numero: 1,
-    titulo: 'Abra o SmartFood no Chrome',
-    descricao: 'Acesse o link normalmente pelo navegador Chrome do celular.',
+    titulo: 'Abra a tela de login do SmartFood no Chrome',
+    descricao:
+      'Acesse o link normalmente e volte pra tela de login ou pro painel antes de continuar.',
   },
   {
     numero: 2,
@@ -127,7 +129,8 @@ export function AjudaInstalarSmartFood() {
 
         <BlocoDestaque icone="✓" titulo="O que isso faz" cor="verde">
           Cria um atalho na tela inicial do celular que abre o SmartFood direto, sem precisar
-          digitar o endereço no navegador toda vez.
+          digitar o endereço no navegador toda vez — e sem a barra de endereço ou os controles do
+          navegador, como se fosse um aplicativo instalado.
         </BlocoDestaque>
 
         <BlocoDestaque icone="◷" titulo="Quanto tempo leva" cor="cinza">
