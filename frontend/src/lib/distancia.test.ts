@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   coordenadaValida,
   distanciaAproximadaMetros,
+  formatarDistancia,
   resolverTaxaPorDistancia,
   validarFaixasEntrega,
 } from './distancia';
@@ -99,5 +100,19 @@ describe('validarFaixasEntrega', () => {
         { distanciaMaxMetros: 500, valorEntrega: 0 },
       ]).valido,
     ).toBe(true);
+  });
+});
+
+describe('formatarDistancia', () => {
+  it('mostra em metros abaixo de 1000m', () => {
+    expect(formatarDistancia(0)).toBe('0 m');
+    expect(formatarDistancia(420)).toBe('420 m');
+    expect(formatarDistancia(999)).toBe('999 m');
+  });
+
+  it('mostra em km com 1 casa decimal a partir de 1000m', () => {
+    expect(formatarDistancia(1000)).toBe('1,0 km');
+    expect(formatarDistancia(1300)).toBe('1,3 km');
+    expect(formatarDistancia(12_400)).toBe('12,4 km');
   });
 });

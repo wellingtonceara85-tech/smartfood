@@ -27,6 +27,7 @@ export interface FaixaEntregaDistancia {
   id: string;
   distanciaMaxMetros: number;
   valorEntrega: number;
+  ativo?: boolean;
 }
 
 export interface LojaPublica {

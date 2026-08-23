@@ -4,6 +4,7 @@ import {
   dataMinimaAgendamento,
   formatarAntecedencia,
 } from '../lib/agendamento';
+import { formatarDistancia } from '../lib/distancia';
 import {
   cepValido,
   EnderecoEntrega,
@@ -44,6 +45,7 @@ interface Props {
   erroLocalizacao: string | null;
   aoObterLocalizacao: () => void;
   entregaPorDistanciaBloqueada: boolean;
+  distanciaClienteMetros: number | null;
   aceitaAgendamento: boolean;
   antecedenciaMinimaMinutos: number;
   tipoPedido: TipoPedido;
@@ -105,6 +107,7 @@ export function ResumoPedido({
   erroLocalizacao,
   aoObterLocalizacao,
   entregaPorDistanciaBloqueada,
+  distanciaClienteMetros,
   aceitaAgendamento,
   antecedenciaMinimaMinutos,
   tipoPedido,
@@ -412,17 +415,23 @@ export function ResumoPedido({
                         </>
                       )}
 
+                      {clienteLocalizacao && distanciaClienteMetros !== null && (
+                        <p className="text-sm text-gray-600">
+                          Distância aproximada: {formatarDistancia(distanciaClienteMetros)}
+                        </p>
+                      )}
+
                       {clienteLocalizacao && !entregaPorDistanciaBloqueada && (
-                        <p className="text-sm font-medium text-gray-800">
+                        <p className="mt-0.5 text-sm font-medium text-gray-800">
                           {taxaEntrega === 0
                             ? '🎉 Entrega grátis — você está dentro da área de entrega gratuita.'
-                            : `Taxa de entrega estimada: ${formatarValorEntrega(taxaEntrega)}`}
+                            : `Taxa de entrega: ${formatarValorEntrega(taxaEntrega)}`}
                         </p>
                       )}
 
                       {clienteLocalizacao && entregaPorDistanciaBloqueada && (
                         <>
-                          <p className="text-sm font-medium text-red-600">
+                          <p className="mt-0.5 text-sm font-medium text-red-600">
                             Este endereço está fora da área de entrega desta loja.
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">

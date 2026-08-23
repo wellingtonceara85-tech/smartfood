@@ -52,6 +52,7 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
         orderBy: { nomeBairro: 'asc' },
       },
       faixasEntregaDistancia: {
+        where: { ativo: true },
         orderBy: { distanciaMaxMetros: 'asc' },
       },
     },
@@ -306,7 +307,9 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
     }
     enderecoValidado = resultadoEndereco.endereco;
 
-    const faixas = await prisma.faixaEntregaDistancia.findMany({ where: { lojaId: loja.id } });
+    const faixas = await prisma.faixaEntregaDistancia.findMany({
+      where: { lojaId: loja.id, ativo: true },
+    });
     const resultadoDistancia = calcularTaxaEntregaPorDistancia(
       loja,
       faixas.map((f) => ({

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { statusOperacionalLoja } from '../../lib/statusLoja';
+import { AcaoStatusLoja, statusOperacionalLoja } from '../../lib/statusLoja';
 
 interface Props {
   slug: string;
@@ -15,10 +15,27 @@ const CORES_POR_ICONE: Record<string, string> = {
   '🟠': 'border-orange-200 bg-orange-50',
 };
 
+const LINK_CLASSE = 'text-xs font-semibold text-primary-hover hover:underline';
+
+function LinkAcao({ slug, acao }: { slug: string; acao: AcaoStatusLoja }) {
+  if (acao.tipo === 'ver_loja') {
+    // Cardápio público é outra origem/rota fora do painel — abre em nova aba
+    // e usa o slug real da própria loja, nunca hardcoded.
+    return (
+      <a href={`/${slug}`} target="_blank" rel="noreferrer" className={LINK_CLASSE}>
+        {acao.rotulo}
+      </a>
+    );
+  }
+  return (
+    <Link to="/painel/loja" className={LINK_CLASSE}>
+      {acao.rotulo}
+    </Link>
+  );
+}
+
 export function StatusLojaCard({ slug, aberto, abertoManual, compacto = false }: Props) {
   const status = statusOperacionalLoja({ aberto, abertoManual });
-  const destino = status.acao.tipo === 'ver_loja' ? `/${slug}` : '/painel/loja';
-  const abreEmNovaAba = status.acao.tipo === 'ver_loja';
 
   if (compacto) {
     return (
@@ -28,23 +45,11 @@ export function StatusLojaCard({ slug, aberto, abertoManual, compacto = false }:
         <span className="flex items-center gap-1.5 font-medium text-gray-800">
           <span aria-hidden="true">{status.icone}</span> {status.titulo}
         </span>
-        {abreEmNovaAba ? (
-          <a
-            href={destino}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 text-xs font-semibold text-primary-hover hover:underline"
-          >
-            {status.acao.rotulo}
-          </a>
-        ) : (
-          <Link
-            to={destino}
-            className="shrink-0 text-xs font-semibold text-primary-hover hover:underline"
-          >
-            {status.acao.rotulo}
-          </Link>
-        )}
+        <span className="flex shrink-0 items-center gap-2">
+          {status.acoes.map((acao) => (
+            <LinkAcao key={acao.tipo} slug={slug} acao={acao} />
+          ))}
+        </span>
       </div>
     );
   }
@@ -55,23 +60,11 @@ export function StatusLojaCard({ slug, aberto, abertoManual, compacto = false }:
         <span aria-hidden="true">{status.icone}</span> {status.titulo}
       </p>
       <p className="mt-0.5 text-xs text-gray-500">{status.descricao}</p>
-      {abreEmNovaAba ? (
-        <a
-          href={destino}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-1.5 inline-block text-xs font-semibold text-primary-hover hover:underline"
-        >
-          {status.acao.rotulo}
-        </a>
-      ) : (
-        <Link
-          to={destino}
-          className="mt-1.5 inline-block text-xs font-semibold text-primary-hover hover:underline"
-        >
-          {status.acao.rotulo}
-        </Link>
-      )}
+      <div className="mt-1.5 flex items-center gap-3">
+        {status.acoes.map((acao) => (
+          <LinkAcao key={acao.tipo} slug={slug} acao={acao} />
+        ))}
+      </div>
     </div>
   );
 }

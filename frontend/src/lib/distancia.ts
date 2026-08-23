@@ -65,6 +65,16 @@ export function resolverTaxaPorDistancia(
   };
 }
 
+/**
+ * Formata a distância aproximada pro cliente ver no checkout: metros pra
+ * valores pequenos (ex: "420 m"), km com 1 casa decimal pra valores maiores
+ * (ex: "1,3 km") — troca em 1000m.
+ */
+export function formatarDistancia(metros: number): string {
+  if (metros < 1000) return `${Math.round(metros)} m`;
+  return `${(metros / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
 export type ResultadoValidacaoFaixas = { valido: true } | { valido: false; erro: string };
 
 /** Mesma regra do backend — usada só pra feedback imediato no formulário do painel. */

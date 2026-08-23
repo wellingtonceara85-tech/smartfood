@@ -1,19 +1,32 @@
 export type EstadoOperacionalLoja =
   'auto_aberto' | 'auto_fechado' | 'manual_aberto' | 'manual_fechado';
 
+export interface AcaoStatusLoja {
+  rotulo: string;
+  tipo: 'ver_loja' | 'ver_horarios';
+}
+
 export interface StatusOperacionalLoja {
   estado: EstadoOperacionalLoja;
   icone: '🟢' | '🔴' | '🟠';
   titulo: string;
   descricao: string;
-  /** Rótulo + destino do link contextual do card ("Ver loja" ou "Ver horários"). */
-  acao: { rotulo: string; tipo: 'ver_loja' | 'ver_horarios' };
+  /**
+   * Ações do card, na ordem em que devem aparecer. "Ver loja" está sempre
+   * presente — o lojista precisa conseguir abrir o próprio cardápio público
+   * independente do estado atual. Estados fechados (auto/manual) também
+   * trazem "Ver horários" antes, pra resolver a causa do fechamento.
+   */
+  acoes: AcaoStatusLoja[];
 }
 
 interface LojaStatusInput {
   aberto: boolean;
   abertoManual: boolean | null;
 }
+
+const VER_LOJA: AcaoStatusLoja = { rotulo: 'Ver loja →', tipo: 'ver_loja' };
+const VER_HORARIOS: AcaoStatusLoja = { rotulo: 'Ver horários →', tipo: 'ver_horarios' };
 
 /**
  * Card de status do painel (sidebar/dashboard) — reaproveita o campo `aberto`
@@ -33,7 +46,7 @@ export function statusOperacionalLoja({
       icone: '🟢',
       titulo: 'Loja aberta manualmente',
       descricao: 'Horário automático pausado',
-      acao: { rotulo: 'Ver loja →', tipo: 'ver_loja' },
+      acoes: [VER_LOJA],
     };
   }
 
@@ -43,7 +56,7 @@ export function statusOperacionalLoja({
       icone: '🟠',
       titulo: 'Loja fechada manualmente',
       descricao: 'Horário automático pausado',
-      acao: { rotulo: 'Ver horários →', tipo: 'ver_horarios' },
+      acoes: [VER_HORARIOS, VER_LOJA],
     };
   }
 
@@ -53,7 +66,7 @@ export function statusOperacionalLoja({
       icone: '🟢',
       titulo: 'Loja aberta',
       descricao: 'Recebendo pedidos',
-      acao: { rotulo: 'Ver loja →', tipo: 'ver_loja' },
+      acoes: [VER_LOJA],
     };
   }
 
@@ -62,6 +75,6 @@ export function statusOperacionalLoja({
     icone: '🔴',
     titulo: 'Loja fechada',
     descricao: 'Fora do horário de funcionamento',
-    acao: { rotulo: 'Ver horários →', tipo: 'ver_horarios' },
+    acoes: [VER_HORARIOS, VER_LOJA],
   };
 }

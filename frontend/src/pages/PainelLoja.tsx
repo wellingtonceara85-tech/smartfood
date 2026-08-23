@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { ModalImagem } from '../components/ModalImagem';
 import { PreviewIdentidadeVisual } from '../components/PreviewIdentidadeVisual';
 import { Alert } from '../components/ui/Alert';
@@ -17,10 +18,12 @@ import {
 } from '../lib/cor';
 import { api, enviarFoto } from '../lib/api';
 import { Loja } from '../types';
+import { PainelLayoutContexto } from './PainelLayout';
 
 const LABEL = 'text-sm font-medium text-gray-700';
 
 export function PainelLoja() {
+  const { recarregarLoja } = useOutletContext<PainelLayoutContexto>();
   const [loja, setLoja] = useState<Loja | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -95,6 +98,12 @@ export function PainelLoja() {
       });
       setLoja(atualizada);
       setMensagem('Salvo com sucesso.');
+      // Essa página mantém sua própria cópia de `loja` (pro formulário
+      // controlado). O shell do painel (sidebar/status/Entrega) tem outra
+      // cópia, buscada uma vez em PainelLayout e só atualizada sob pedido —
+      // sem isso, endereço/localização/horário salvos aqui não apareciam nas
+      // outras telas até um refresh manual da página.
+      recarregarLoja();
     } finally {
       setSalvando(false);
     }

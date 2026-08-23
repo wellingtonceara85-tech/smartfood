@@ -400,10 +400,12 @@ adminRouter.delete('/bairros/:id', async (req, res) => {
 // --- Faixas de entrega por distância ---
 //
 // Estratégia alternativa à de bairro, opt-in via loja.calcularEntregaPorDistancia.
-// A lista inteira é salva de uma vez (não há CRUD item a item): a ordem e a
-// ausência de sobreposição entre faixas importam pro cálculo, então é mais
-// simples e mais seguro validar e substituir o conjunto completo do que
-// reconciliar edições parciais.
+// Cada loja define as próprias faixas livremente (nenhum limite/valor é fixo
+// no código) — CRUD item a item, no mesmo padrão de /bairros (criar, editar,
+// ativar/inativar, excluir). Só as faixas ATIVAS entram no cálculo da taxa
+// (ver GET /api/public/lojas/:slug e a criação de pedido em public.ts), então
+// a validação de sobreposição (`validarFaixasEntrega`) roda sempre sobre o
+// conjunto de faixas ativas resultante da operação, nunca sobre as inativas.
 
 adminRouter.get('/faixas-entrega', async (req, res) => {
   const lojaId = lojaIdOuErro(req, res);
@@ -419,33 +421,88 @@ adminRouter.get('/faixas-entrega', async (req, res) => {
 const faixaEntregaSchema = z.object({
   distanciaMaxMetros: z.number().int().positive(),
   valorEntrega: z.number().nonnegative(),
+  ativo: z.boolean().optional(),
 });
 
-const salvarFaixasEntregaSchema = z.object({
-  faixas: z.array(faixaEntregaSchema),
-});
+/** Valida que a faixa (nova ou editada) não colide em distância com as demais faixas ATIVAS da loja. */
+async function validarSemSobreposicao(
+  lojaId: string,
+  faixaId: string | null,
+  candidata: { distanciaMaxMetros: number; valorEntrega: number; ativo: boolean },
+): Promise<string | null> {
+  if (!candidata.ativo) return null; // inativa nunca disputa distância com outras
 
-adminRouter.put('/faixas-entrega', async (req, res) => {
+  const outrasAtivas = await prisma.faixaEntregaDistancia.findMany({
+    where: { lojaId, ativo: true, ...(faixaId ? { id: { not: faixaId } } : {}) },
+  });
+  const conjunto = [
+    ...outrasAtivas.map((f) => ({
+      distanciaMaxMetros: f.distanciaMaxMetros,
+      valorEntrega: Number(f.valorEntrega),
+    })),
+    { distanciaMaxMetros: candidata.distanciaMaxMetros, valorEntrega: candidata.valorEntrega },
+  ];
+  const validacao = validarFaixasEntrega(conjunto);
+  return validacao.valido ? null : validacao.erro;
+}
+
+adminRouter.post('/faixas-entrega', async (req, res) => {
   const lojaId = lojaIdOuErro(req, res);
   if (!lojaId) return;
 
-  const parsed = salvarFaixasEntregaSchema.safeParse(req.body);
+  const parsed = faixaEntregaSchema.safeParse(req.body);
   if (!parsed.success)
     return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
 
-  const validacao = validarFaixasEntrega(parsed.data.faixas);
-  if (!validacao.valido) return res.status(400).json({ erro: validacao.erro });
+  const ativo = parsed.data.ativo ?? true;
+  const erroSobreposicao = await validarSemSobreposicao(lojaId, null, { ...parsed.data, ativo });
+  if (erroSobreposicao) return res.status(400).json({ erro: erroSobreposicao });
 
-  const [, faixas] = await prisma.$transaction([
-    prisma.faixaEntregaDistancia.deleteMany({ where: { lojaId } }),
-    prisma.faixaEntregaDistancia.createManyAndReturn({
-      data: parsed.data.faixas.map((faixa) => ({ ...faixa, lojaId })),
-    }),
-  ]);
+  const faixa = await prisma.faixaEntregaDistancia.create({
+    data: { ...parsed.data, ativo, lojaId },
+  });
+  res.status(201).json(serializarFaixaEntrega(faixa));
+});
 
-  res.json(
-    faixas.map(serializarFaixaEntrega).sort((a, b) => a.distanciaMaxMetros - b.distanciaMaxMetros),
-  );
+adminRouter.put('/faixas-entrega/:id', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = faixaEntregaSchema.partial().safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const existente = await prisma.faixaEntregaDistancia.findFirst({
+    where: { id: req.params.id, lojaId },
+  });
+  if (!existente) return res.status(404).json({ erro: 'Faixa não encontrada' });
+
+  const candidata = {
+    distanciaMaxMetros: parsed.data.distanciaMaxMetros ?? existente.distanciaMaxMetros,
+    valorEntrega: parsed.data.valorEntrega ?? Number(existente.valorEntrega),
+    ativo: parsed.data.ativo ?? existente.ativo,
+  };
+  const erroSobreposicao = await validarSemSobreposicao(lojaId, existente.id, candidata);
+  if (erroSobreposicao) return res.status(400).json({ erro: erroSobreposicao });
+
+  const faixa = await prisma.faixaEntregaDistancia.update({
+    where: { id: existente.id },
+    data: parsed.data,
+  });
+  res.json(serializarFaixaEntrega(faixa));
+});
+
+adminRouter.delete('/faixas-entrega/:id', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const existente = await prisma.faixaEntregaDistancia.findFirst({
+    where: { id: req.params.id, lojaId },
+  });
+  if (!existente) return res.status(404).json({ erro: 'Faixa não encontrada' });
+
+  await prisma.faixaEntregaDistancia.delete({ where: { id: existente.id } });
+  res.status(204).send();
 });
 
 // --- Pedidos ---

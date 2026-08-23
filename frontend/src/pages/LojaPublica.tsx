@@ -336,19 +336,25 @@ export function LojaPublica() {
   // latitude/longitude ou sem localização do cliente ainda capturada, não dá
   // pra estimar nada (mostrado como "obtenha sua localização", não como R$ 0).
   const modoEntregaDistancia = loja?.calcularEntregaPorDistancia ?? false;
-  const resultadoDistancia = useMemo(() => {
+  // Separado do resultado (taxa/faixa) pra poder exibir "Distância aproximada: X"
+  // pro cliente mesmo quando ele está fora de cobertura (resultadoDistancia.ok === false).
+  const distanciaClienteMetros = useMemo(() => {
     if (!modoEntregaDistancia || !loja || loja.latitude === null || loja.longitude === null) {
       return null;
     }
     if (!clienteLocalizacao) return null;
-    const distanciaMetros = distanciaAproximadaMetros(
+    return distanciaAproximadaMetros(
       loja.latitude,
       loja.longitude,
       clienteLocalizacao.latitude,
       clienteLocalizacao.longitude,
     );
-    return resolverTaxaPorDistancia(loja.faixasEntregaDistancia, distanciaMetros);
   }, [modoEntregaDistancia, loja, clienteLocalizacao]);
+
+  const resultadoDistancia = useMemo(() => {
+    if (distanciaClienteMetros === null || !loja) return null;
+    return resolverTaxaPorDistancia(loja.faixasEntregaDistancia, distanciaClienteMetros);
+  }, [distanciaClienteMetros, loja]);
 
   const entregaPorDistanciaBloqueada =
     formaRecebimento === 'entrega' &&
@@ -680,6 +686,7 @@ export function LojaPublica() {
           erroLocalizacao={erroLocalizacao}
           aoObterLocalizacao={obterLocalizacaoCliente}
           entregaPorDistanciaBloqueada={entregaPorDistanciaBloqueada}
+          distanciaClienteMetros={distanciaClienteMetros}
           aceitaAgendamento={loja.aceitaAgendamento}
           antecedenciaMinimaMinutos={loja.antecedenciaMinimaMinutos}
           tipoPedido={tipoPedido}
