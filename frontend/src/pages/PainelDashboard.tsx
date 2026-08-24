@@ -4,10 +4,16 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Loading } from '../components/ui/Loading';
+import { ProximosPedidos } from '../components/painel/ProximosPedidos';
 import { StatusLojaCard } from '../components/painel/StatusLojaCard';
+import { useAuth } from '../context/AuthContext';
+import { useNotificacoes } from '../context/NotificacoesContext';
+import { contarPedidosPrecisandoAtencao } from '../lib/agendaProxima';
 import { api } from '../lib/api';
+import { resumoOperacional } from '../lib/resumoOperacional';
+import { nomeParaSaudacao, saudacaoPorHora } from '../lib/saudacao';
 import { PainelLayoutContexto } from './PainelLayout';
-import { DashboardResumo, Pendencia, PedidoAdmin, Produto } from '../types';
+import { DashboardResumo, Pendencia, Produto } from '../types';
 
 function formatarISO(data: Date): string {
   const ano = data.getFullYear();
@@ -47,12 +53,12 @@ function StatCard({ titulo, valor }: StatCardProps) {
 
 export function PainelDashboard() {
   const { loja } = useOutletContext<PainelLayoutContexto>();
+  const { usuario } = useAuth();
+  const { pedidos, carregandoPedidos, novosIds } = useNotificacoes();
   const [dataInicio, setDataInicio] = useState(hojeISO());
   const [dataFim, setDataFim] = useState(hojeISO());
   const [periodoAtivo, setPeriodoAtivo] = useState<'hoje' | '7dias' | 'mes' | 'custom'>('hoje');
   const [resumo, setResumo] = useState<DashboardResumo | null>(null);
-  const [pedidosEmPreparo, setPedidosEmPreparo] = useState<number | null>(null);
-  const [encomendasProximas, setEncomendasProximas] = useState<number | null>(null);
   const [totalProdutos, setTotalProdutos] = useState<number | null>(null);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [carregando, setCarregando] = useState(true);
@@ -67,21 +73,6 @@ export function PainelDashboard() {
   }, [dataInicio, dataFim]);
 
   useEffect(() => {
-    api<PedidoAdmin[]>('/api/admin/pedidos', { autenticado: true }).then((pedidos) => {
-      setPedidosEmPreparo(pedidos.filter((p) => p.status === 'em_preparo').length);
-
-      const agora = Date.now();
-      const em7Dias = agora + 7 * 24 * 60 * 60 * 1000;
-      setEncomendasProximas(
-        pedidos.filter((p) => {
-          if (p.tipoPedido !== 'agendado' || p.status === 'finalizado' || !p.dataAgendamento) {
-            return false;
-          }
-          const dataAgendamento = new Date(p.dataAgendamento).getTime();
-          return dataAgendamento >= agora && dataAgendamento <= em7Dias;
-        }).length,
-      );
-    });
     api<Produto[]>('/api/admin/produtos', { autenticado: true }).then((produtos) => {
       setTotalProdutos(produtos.length);
     });
@@ -99,9 +90,43 @@ export function PainelDashboard() {
   const botaoPeriodo = (chave: typeof periodoAtivo) =>
     periodoAtivo === chave ? 'primary' : 'secondary';
 
+  const pedidosEmPreparo = carregandoPedidos
+    ? null
+    : pedidos.filter((p) => p.status === 'em_preparo').length;
+
+  const agora = Date.now();
+  const em7Dias = agora + 7 * 24 * 60 * 60 * 1000;
+  const encomendasProximas = carregandoPedidos
+    ? null
+    : pedidos.filter((p) => {
+        if (p.tipoPedido !== 'agendado' || p.status === 'finalizado' || !p.dataAgendamento) {
+          return false;
+        }
+        const dataAgendamento = new Date(p.dataAgendamento).getTime();
+        return dataAgendamento >= agora && dataAgendamento <= em7Dias;
+      }).length;
+
+  const nome = nomeParaSaudacao(usuario?.nome, loja?.nome);
+  const resumoOp = loja
+    ? resumoOperacional({
+        aberto: loja.aberto,
+        pedidosPrecisandoAtencao: contarPedidosPrecisandoAtencao(pedidos),
+      })
+    : null;
+
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-gray-800">Dashboard</h2>
+      <div>
+        <h2 className="text-lg font-semibold text-gray-800">
+          {saudacaoPorHora(new Date().getHours())}
+          {nome ? `, ${nome}` : ''} <span aria-hidden="true">👋</span>
+        </h2>
+        {resumoOp && (
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-600">
+            <span aria-hidden="true">{resumoOp.icone}</span> {resumoOp.mensagem}
+          </p>
+        )}
+      </div>
 
       {loja && (
         <div className="lg:hidden">
@@ -137,6 +162,8 @@ export function PainelDashboard() {
           </ul>
         </Card>
       )}
+
+      <ProximosPedidos pedidos={pedidos} novosIds={novosIds} />
 
       <Card className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">

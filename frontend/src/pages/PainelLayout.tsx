@@ -3,7 +3,10 @@ import { Link, Outlet } from 'react-router-dom';
 import { AvisoTrial } from '../components/AvisoTrial';
 import { BottomNavPainel } from '../components/painel/BottomNavPainel';
 import { SidebarPainel } from '../components/painel/SidebarPainel';
+import { SininhoNotificacoes } from '../components/painel/SininhoNotificacoes';
+import { ToastNovoPedido } from '../components/painel/ToastNovoPedido';
 import { useAuth } from '../context/AuthContext';
+import { NotificacoesProvider } from '../context/NotificacoesContext';
 import { api } from '../lib/api';
 import { Loja } from '../types';
 
@@ -28,52 +31,62 @@ export function PainelLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <SidebarPainel loja={loja} aoSair={logout} />
+    <NotificacoesProvider>
+      <div className="min-h-screen bg-gray-50">
+        <SidebarPainel loja={loja} aoSair={logout} />
 
-      <div className="lg:pl-60">
-        <header className="flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
-          <div className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-text"
-            >
-              S
-            </span>
-            <div>
-              <p className="text-sm font-bold leading-tight text-gray-800">SmartFood</p>
-              <p className="text-xs leading-tight text-gray-500">{usuario?.email}</p>
+        <div className="lg:pl-60">
+          <header className="flex items-center justify-between border-b bg-white px-4 py-3 lg:hidden">
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-text"
+              >
+                S
+              </span>
+              <div>
+                <p className="text-sm font-bold leading-tight text-gray-800">SmartFood</p>
+                <p className="text-xs leading-tight text-gray-500">{usuario?.email}</p>
+              </div>
             </div>
+            <div className="flex items-center gap-1">
+              <SininhoNotificacoes />
+              <button
+                onClick={logout}
+                className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+              >
+                Sair
+              </button>
+            </div>
+          </header>
+
+          <div className="hidden items-center justify-end border-b bg-white px-6 py-2.5 lg:flex">
+            <SininhoNotificacoes />
           </div>
-          <button
-            onClick={logout}
-            className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-          >
-            Sair
-          </button>
-        </header>
 
-        <AvisoTrial />
+          <AvisoTrial />
 
-        {/* pb extra + safe-area no mobile pra nada ficar escondido atrás da bottom nav fixa; lg+ não tem bottom nav. */}
-        <main className="mx-auto max-w-6xl px-4 py-6 pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-6">
-          <Outlet context={{ loja, recarregarLoja } satisfies PainelLayoutContexto} />
+          {/* pb extra + safe-area no mobile pra nada ficar escondido atrás da bottom nav fixa; lg+ não tem bottom nav. */}
+          <main className="mx-auto max-w-6xl px-4 py-6 pb-[calc(72px+env(safe-area-inset-bottom))] lg:pb-6">
+            <Outlet context={{ loja, recarregarLoja } satisfies PainelLayoutContexto} />
 
-          <p className="mt-8 text-center text-xs text-gray-400">
-            Adicione o SmartFood à tela inicial →{' '}
-            <Link
-              to="/ajuda/instalar-smartfood"
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-gray-600"
-            >
-              Ver como adicionar
-            </Link>
-          </p>
-        </main>
+            <p className="mt-8 text-center text-xs text-gray-400">
+              Adicione o SmartFood à tela inicial →{' '}
+              <Link
+                to="/ajuda/instalar-smartfood"
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-gray-600"
+              >
+                Ver como adicionar
+              </Link>
+            </p>
+          </main>
+        </div>
+
+        <BottomNavPainel />
+        <ToastNovoPedido />
       </div>
-
-      <BottomNavPainel />
-    </div>
+    </NotificacoesProvider>
   );
 }

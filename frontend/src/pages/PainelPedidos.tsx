@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Loading } from '../components/ui/Loading';
+import { useNotificacoes } from '../context/NotificacoesContext';
 import { api } from '../lib/api';
 import {
   EnderecoEntrega,
@@ -102,37 +103,6 @@ const BADGE_COR_STATUS: Record<StatusPedido, 'primary' | 'secondary' | 'gray' | 
     entregue: 'primary',
     finalizado: 'gray',
   };
-
-interface WindowComWebkitAudio extends Window {
-  webkitAudioContext?: typeof AudioContext;
-}
-
-// Alerta curto via Web Audio API — sem depender de um arquivo de áudio novo.
-// Navegadores bloqueiam autoplay de som sem gesto prévio do usuário: nesse
-// caso a chamada só falha silenciosamente (o destaque visual do card novo
-// continua funcionando). Uma vez que o lojista interaja com a página (clique
-// em qualquer botão), o contexto de áudio já fica liberado pro navegador.
-function tocarAlertaSonoro() {
-  try {
-    const AudioCtx = window.AudioContext ?? (window as WindowComWebkitAudio).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.4);
-    osc.onended = () => ctx.close();
-  } catch {
-    // AudioContext indisponível ou bloqueado — sem alerta sonoro, o destaque visual basta.
-  }
-}
 
 function EnderecoPedido({ pedido }: { pedido: PedidoAdmin }) {
   const [expandido, setExpandido] = useState(false);
@@ -309,46 +279,8 @@ function PedidoCard({
 }
 
 export function PainelPedidos() {
-  const [pedidos, setPedidos] = useState<PedidoAdmin[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  const { pedidos, carregandoPedidos, novosIds, atualizarPedidoLocal } = useNotificacoes();
   const [aba, setAba] = useState<Aba>('agora');
-  const [novosIds, setNovosIds] = useState<Set<string>>(new Set());
-  const idsConhecidosRef = useRef<Set<string> | null>(null);
-
-  useEffect(() => {
-    async function carregar() {
-      try {
-        const resp = await api<PedidoAdmin[]>('/api/admin/pedidos', { autenticado: true });
-
-        if (idsConhecidosRef.current) {
-          const novos = resp.filter((p) => !idsConhecidosRef.current!.has(p.id));
-          if (novos.length > 0) {
-            tocarAlertaSonoro();
-            setNovosIds((atual) => new Set([...atual, ...novos.map((p) => p.id)]));
-            for (const pedido of novos) {
-              setTimeout(() => {
-                setNovosIds((atual) => {
-                  const copia = new Set(atual);
-                  copia.delete(pedido.id);
-                  return copia;
-                });
-              }, 10_000);
-            }
-          }
-        }
-        idsConhecidosRef.current = new Set(resp.map((p) => p.id));
-        setPedidos(resp);
-      } finally {
-        setCarregando(false);
-      }
-    }
-
-    carregar();
-    // Sem WebSocket/listener em tempo real no backend hoje — polling reaproveita
-    // o mesmo padrão já usado no acompanhamento público do cliente.
-    const intervalo = setInterval(carregar, 12_000);
-    return () => clearInterval(intervalo);
-  }, []);
 
   async function mudarStatus(pedido: PedidoAdmin, status: StatusPedido) {
     const atualizado = await api<PedidoAdmin>(`/api/admin/pedidos/${pedido.id}/status`, {
@@ -356,10 +288,10 @@ export function PainelPedidos() {
       autenticado: true,
       body: { status },
     });
-    setPedidos((atuais) => atuais.map((p) => (p.id === atualizado.id ? atualizado : p)));
+    atualizarPedidoLocal(atualizado);
   }
 
-  if (carregando) return <Loading />;
+  if (carregandoPedidos) return <Loading />;
 
   const pedidosAgora = pedidos.filter(
     (p) => p.tipoPedido === 'imediato' && p.status !== 'finalizado',
