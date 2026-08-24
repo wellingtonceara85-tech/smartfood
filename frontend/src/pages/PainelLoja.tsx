@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { AgendaHorarios } from '../components/painel/AgendaHorarios';
 import { ModalImagem } from '../components/ModalImagem';
 import { PreviewIdentidadeVisual } from '../components/PreviewIdentidadeVisual';
 import { Alert } from '../components/ui/Alert';
@@ -16,6 +17,7 @@ import {
   corValida,
   normalizarCor,
 } from '../lib/cor';
+import { agendaInicialAPartirDoLegado } from '../lib/horario';
 import { api, enviarFoto } from '../lib/api';
 import { Loja } from '../types';
 import { PainelLayoutContexto } from './PainelLayout';
@@ -64,7 +66,18 @@ export function PainelLoja() {
 
   useEffect(() => {
     api<Loja>('/api/admin/loja', { autenticado: true })
-      .then(setLoja)
+      .then((dados) => {
+        // Loja que ainda não tem agenda semanal própria: o editor já abre
+        // preenchido com o que ela já tinha (horário único legado, ou
+        // "sempre aberto" quando nunca configurou nada) — só passa a existir
+        // de verdade quando o lojista salvar a tela, sem perder nada.
+        setLoja({
+          ...dados,
+          horariosFuncionamento:
+            dados.horariosFuncionamento ??
+            agendaInicialAPartirDoLegado(dados.horarioAbertura, dados.horarioFechamento),
+        });
+      })
       .finally(() => setCarregando(false));
   }, []);
 
@@ -87,8 +100,7 @@ export function PainelLoja() {
           longitude: loja.longitude,
           chavePix: loja.chavePix || null,
           telefoneWhatsapp: loja.telefoneWhatsapp,
-          horarioAbertura: loja.horarioAbertura || null,
-          horarioFechamento: loja.horarioFechamento || null,
+          horariosFuncionamento: loja.horariosFuncionamento,
           abertoManual: loja.abertoManual,
           corPrimaria: loja.corPrimaria,
           corSecundaria: loja.corSecundaria,
@@ -379,27 +391,14 @@ export function PainelLoja() {
           placeholder="5585999999999"
         />
 
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className={LABEL}>Abertura</label>
-            <Input
-              type="time"
-              value={loja.horarioAbertura ?? ''}
-              onChange={(e) => setLoja({ ...loja, horarioAbertura: e.target.value })}
-            />
-          </div>
-          <div className="flex-1">
-            <label className={LABEL}>Fechamento</label>
-            <Input
-              type="time"
-              value={loja.horarioFechamento ?? ''}
-              onChange={(e) => setLoja({ ...loja, horarioFechamento: e.target.value })}
-            />
-          </div>
-        </div>
+        <label className={LABEL}>Dias e horários de funcionamento</label>
+        <AgendaHorarios
+          valor={loja.horariosFuncionamento ?? agendaInicialAPartirDoLegado(null, null)}
+          aoMudar={(novo) => setLoja({ ...loja, horariosFuncionamento: novo })}
+        />
         <p className="-mt-2 text-xs text-gray-500">
-          Define quando o cardápio aparece aberto pros clientes no modo automático. Sem horário
-          cadastrado, o cardápio aparece sempre aberto.
+          Define quando o cardápio aparece aberto pros clientes no modo automático. Use "+ Adicionar
+          horário" pra mais de um período no mesmo dia (ex: almoço e jantar).
         </p>
 
         <label className={LABEL}>Status manual (sobrepõe o horário)</label>

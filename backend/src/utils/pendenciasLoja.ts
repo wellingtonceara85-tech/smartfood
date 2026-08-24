@@ -13,6 +13,9 @@ interface DadosPendenciasLoja {
   horarioAbertura: string | null;
   horarioFechamento: string | null;
   abertoManual: boolean | null;
+  // Presença (não formato) é o que importa aqui — a validação de conteúdo já
+  // acontece na rota, via validarHorariosFuncionamento, antes de gravar.
+  horariosFuncionamento?: unknown;
   logoUrl: string | null;
   endereco: string | null;
 }
@@ -40,7 +43,9 @@ export function montarPendenciasLoja(dados: DadosPendenciasLoja): Pendencia[] {
   const pendencias: Pendencia[] = [];
 
   const semHorarioEModoAutomatico =
-    (!dados.horarioAbertura || !dados.horarioFechamento) && dados.abertoManual == null;
+    !dados.horariosFuncionamento &&
+    (!dados.horarioAbertura || !dados.horarioFechamento) &&
+    dados.abertoManual == null;
   if (semHorarioEModoAutomatico) {
     pendencias.push({
       chave: 'horario_funcionamento',

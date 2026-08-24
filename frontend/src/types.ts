@@ -30,6 +30,19 @@ export interface FaixaEntregaDistancia {
   ativo?: boolean;
 }
 
+export interface FaixaHorarioDia {
+  abertura: string; // "HH:mm"
+  fechamento: string; // "HH:mm" — pode ser menor que abertura (atravessa meia-noite)
+}
+
+export interface DiaHorarioFuncionamento {
+  diaSemana: number; // 0=domingo .. 6=sábado, igual Date.getDay()
+  ativo: boolean;
+  faixas: FaixaHorarioDia[];
+}
+
+export type HorariosFuncionamento = DiaHorarioFuncionamento[];
+
 export interface LojaPublica {
   id: string;
   nome: string;
@@ -43,6 +56,7 @@ export interface LojaPublica {
   aberto: boolean;
   horarioAbertura: string | null;
   horarioFechamento: string | null;
+  horariosFuncionamento: HorariosFuncionamento | null;
   aceitaAgendamento: boolean;
   antecedenciaMinimaMinutos: number;
   corPrimaria: string;
@@ -78,6 +92,7 @@ export interface Loja {
   horarioAbertura: string | null;
   horarioFechamento: string | null;
   abertoManual: boolean | null;
+  horariosFuncionamento: HorariosFuncionamento | null;
   aberto: boolean;
   corPrimaria: string;
   corSecundaria: string;

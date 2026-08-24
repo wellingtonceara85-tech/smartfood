@@ -53,6 +53,21 @@ test('status manual definido (forçar aberto/fechado) dispensa a pendência de h
   );
 });
 
+test('agenda semanal configurada dispensa a pendência de horário, mesmo sem os campos legados', () => {
+  const pendencias = montarPendenciasLoja({
+    ...lojaCompleta,
+    horarioAbertura: null,
+    horarioFechamento: null,
+    horariosFuncionamento: [
+      { diaSemana: 1, ativo: true, faixas: [{ abertura: '08:00', fechamento: '18:00' }] },
+    ],
+  });
+  assert.equal(
+    pendencias.some((p) => p.chave === 'horario_funcionamento'),
+    false,
+  );
+});
+
 test('falta só o horário de fechamento (abertura preenchida) ainda conta como pendência', () => {
   const pendencias = montarPendenciasLoja({
     ...lojaCompleta,

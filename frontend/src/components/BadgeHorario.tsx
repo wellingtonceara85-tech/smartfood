@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { listaDiasHorario, mensagemStatusLoja } from '../lib/horario';
+import { HorariosFuncionamento } from '../types';
 
 interface Props {
   aberto: boolean;
   horarioAbertura: string | null;
   horarioFechamento: string | null;
+  horariosFuncionamento?: HorariosFuncionamento | null;
 }
 
 const SELETOR_FOCAVEL = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
-export function BadgeHorario({ aberto, horarioAbertura, horarioFechamento }: Props) {
+export function BadgeHorario({
+  aberto,
+  horarioAbertura,
+  horarioFechamento,
+  horariosFuncionamento,
+}: Props) {
   const [popoverAberto, setPopoverAberto] = useState(false);
   const [visivel, setVisivel] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -66,8 +73,13 @@ export function BadgeHorario({ aberto, horarioAbertura, horarioFechamento }: Pro
     };
   }, [popoverAberto]);
 
-  const mensagem = mensagemStatusLoja({ aberto, horarioAbertura, horarioFechamento });
-  const dias = listaDiasHorario(horarioAbertura, horarioFechamento);
+  const mensagem = mensagemStatusLoja({
+    aberto,
+    horarioAbertura,
+    horarioFechamento,
+    horariosFuncionamento,
+  });
+  const dias = listaDiasHorario({ horarioAbertura, horarioFechamento, horariosFuncionamento });
 
   return (
     <div ref={containerRef} className="absolute right-4 top-4 text-left">

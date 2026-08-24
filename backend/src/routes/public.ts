@@ -19,7 +19,7 @@ import {
   validarEnderecoEntrega,
 } from '../utils/endereco';
 import { calcularTaxaEntregaPorDistancia } from '../utils/entregaPedido';
-import { calcularAberto } from '../utils/horario';
+import { calcularAberto, HorariosFuncionamento } from '../utils/horario';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
 import { projetarPedidoAnteriorPublico } from '../utils/pedidoPublico';
@@ -72,9 +72,13 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     endereco: loja.endereco,
     chavePix: loja.chavePix,
     telefoneWhatsapp: loja.telefoneWhatsapp,
-    aberto: calcularAberto(loja),
+    aberto: calcularAberto({
+      ...loja,
+      horariosFuncionamento: loja.horariosFuncionamento as HorariosFuncionamento | null,
+    }),
     horarioAbertura: loja.horarioAbertura,
     horarioFechamento: loja.horarioFechamento,
+    horariosFuncionamento: loja.horariosFuncionamento as HorariosFuncionamento | null,
     aceitaAgendamento: loja.aceitaAgendamento,
     antecedenciaMinimaMinutos: loja.antecedenciaMinimaMinutos,
     corPrimaria: corOuPadrao(loja.corPrimaria, COR_PRIMARIA_PADRAO),
@@ -244,7 +248,13 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
     if (!dataAgendamentoUtc) {
       return res.status(400).json({ erro: 'Informe data e horário válidos para o agendamento' });
     }
-    const resultado = validarAgendamento(loja, dataAgendamentoUtc);
+    const resultado = validarAgendamento(
+      {
+        ...loja,
+        horariosFuncionamento: loja.horariosFuncionamento as HorariosFuncionamento | null,
+      },
+      dataAgendamentoUtc,
+    );
     if (!resultado.valido) {
       return res.status(400).json({ erro: resultado.erro });
     }

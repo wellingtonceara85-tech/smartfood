@@ -5,7 +5,11 @@ import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
 import { prisma } from '../prisma';
 import { HEX_REGEX, normalizarCor } from '../utils/cor';
 import { latitudeValida, longitudeValida, validarFaixasEntrega } from '../utils/distancia';
-import { calcularAberto } from '../utils/horario';
+import {
+  calcularAberto,
+  HorariosFuncionamento,
+  validarHorariosFuncionamento,
+} from '../utils/horario';
 import { montarPendenciasLoja } from '../utils/pendenciasLoja';
 import { cancelamentoPermitido, STATUS_PEDIDO, transicaoValida } from '../utils/statusPedido';
 import { calcularTrial } from '../utils/trial';
@@ -36,6 +40,24 @@ function serializarPedido(pedido: Pedido) {
   };
 }
 
+/** O Prisma tipa a coluna Json genericamente — o formato real é sempre o validado em validarHorariosFuncionamento antes de gravar. */
+function comAberto<
+  T extends {
+    horarioAbertura: string | null;
+    horarioFechamento: string | null;
+    abertoManual: boolean | null;
+    horariosFuncionamento: Prisma.JsonValue | null;
+  },
+>(loja: T): T & { aberto: boolean } {
+  return {
+    ...loja,
+    aberto: calcularAberto({
+      ...loja,
+      horariosFuncionamento: loja.horariosFuncionamento as HorariosFuncionamento | null,
+    }),
+  };
+}
+
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
 
@@ -60,11 +82,23 @@ adminRouter.get('/loja', async (req, res) => {
   const loja = await prisma.loja.findUnique({ where: { id: lojaId } });
   if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' });
   res.json({
-    ...loja,
-    aberto: calcularAberto(loja),
+    ...comAberto(loja),
     trial: calcularTrial(loja.trialInicioEm, loja.trialFimEm),
   });
 });
+
+const faixaHorarioDiaSchema = z.object({
+  abertura: z.string(),
+  fechamento: z.string(),
+});
+
+const diaHorarioFuncionamentoSchema = z.object({
+  diaSemana: z.number().int().min(0).max(6),
+  ativo: z.boolean(),
+  faixas: z.array(faixaHorarioDiaSchema).max(6),
+});
+
+const horariosFuncionamentoSchema = z.array(diaHorarioFuncionamentoSchema).nullable().optional();
 
 const coordenadaSchema = z
   .number()
@@ -86,6 +120,7 @@ const atualizarLojaSchema = z
     horarioAbertura: z.string().nullable().optional(),
     horarioFechamento: z.string().nullable().optional(),
     abertoManual: z.boolean().nullable().optional(),
+    horariosFuncionamento: horariosFuncionamentoSchema,
     corPrimaria: corHexSchema.optional(),
     corSecundaria: corHexSchema.optional(),
     aceitaAgendamento: z.boolean().optional(),
@@ -113,6 +148,13 @@ adminRouter.put('/loja', async (req, res) => {
   if (!parsed.success)
     return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
 
+  if (parsed.data.horariosFuncionamento) {
+    const validacaoHorarios = validarHorariosFuncionamento(parsed.data.horariosFuncionamento);
+    if (!validacaoHorarios.valido) {
+      return res.status(400).json({ erro: validacaoHorarios.erro });
+    }
+  }
+
   // Não dá pra ligar o cálculo por distância sem uma origem — evita o estado
   // impossível de "ligado mas sem latitude/longitude" em vez de deixar pra
   // barrar isso só na hora de calcular o pedido.
@@ -136,8 +178,11 @@ adminRouter.put('/loja', async (req, res) => {
     }
   }
 
-  const loja = await prisma.loja.update({ where: { id: lojaId }, data: parsed.data });
-  res.json({ ...loja, aberto: calcularAberto(loja) });
+  const loja = await prisma.loja.update({
+    where: { id: lojaId },
+    data: parsed.data as Prisma.LojaUpdateInput,
+  });
+  res.json(comAberto(loja));
 });
 
 // Pendências de configuração da loja pro card "Deixe sua loja pronta para
@@ -155,6 +200,7 @@ adminRouter.get('/pendencias', async (req, res) => {
         horarioAbertura: true,
         horarioFechamento: true,
         abertoManual: true,
+        horariosFuncionamento: true,
         logoUrl: true,
         endereco: true,
       },

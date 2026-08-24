@@ -1,10 +1,16 @@
-import { FUSO_LOJA, minutosDoDiaNoFuso, OFFSET_MINUTOS_FUSO_LOJA, paraMinutos } from './horario';
+import {
+  dentroDoHorarioNoInstante,
+  FUSO_LOJA,
+  HorariosFuncionamento,
+  OFFSET_MINUTOS_FUSO_LOJA,
+} from './horario';
 
 interface LojaAgendamento {
   aceitaAgendamento: boolean;
   antecedenciaMinimaMinutos: number;
   horarioAbertura: string | null;
   horarioFechamento: string | null;
+  horariosFuncionamento?: HorariosFuncionamento | null;
 }
 
 /**
@@ -94,23 +100,20 @@ export function validarAgendamento(
     };
   }
 
-  if (loja.horarioAbertura && loja.horarioFechamento) {
-    const minutosEscolhidos = minutosDoDiaNoFuso(dataAgendamentoUtc, FUSO_LOJA);
-    const abertura = paraMinutos(loja.horarioAbertura);
-    const fechamento = paraMinutos(loja.horarioFechamento);
-
-    const dentroDoHorario =
-      abertura === fechamento
-        ? true
-        : abertura < fechamento
-          ? minutosEscolhidos >= abertura && minutosEscolhidos < fechamento
-          : minutosEscolhidos >= abertura || minutosEscolhidos < fechamento;
+  // Mesma checagem que decide "está aberto agora" (calcularAberto), mas
+  // aplicada ao instante futuro escolhido — nunca olha abertoManual, que é
+  // um override só do "agora" e não faz sentido pra uma data futura.
+  if (loja.horariosFuncionamento || (loja.horarioAbertura && loja.horarioFechamento)) {
+    const dentroDoHorario = dentroDoHorarioNoInstante(
+      { ...loja, abertoManual: null },
+      dataAgendamentoUtc,
+    );
 
     if (!dentroDoHorario) {
-      return {
-        valido: false,
-        erro: `Escolha um horário entre ${loja.horarioAbertura} e ${loja.horarioFechamento}, que é quando a loja funciona.`,
-      };
+      const erro = loja.horariosFuncionamento
+        ? 'Escolha um horário dentro do funcionamento da loja nesse dia da semana.'
+        : `Escolha um horário entre ${loja.horarioAbertura} e ${loja.horarioFechamento}, que é quando a loja funciona.`;
+      return { valido: false, erro };
     }
   }
 
