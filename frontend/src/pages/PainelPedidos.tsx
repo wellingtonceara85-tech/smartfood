@@ -1,69 +1,16 @@
 import { useState } from 'react';
-import { Badge } from '../components/ui/Badge';
-import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
+import { CentralOperacional } from '../components/painel/CentralOperacional';
+import { ModalCancelarPedido } from '../components/painel/ModalCancelarPedido';
+import { PedidoCard } from '../components/painel/PedidoCard';
+import { Alert } from '../components/ui/Alert';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Loading } from '../components/ui/Loading';
 import { useNotificacoes } from '../context/NotificacoesContext';
 import { api } from '../lib/api';
-import {
-  EnderecoEntrega,
-  formatarEnderecoCompleto,
-  formatarEnderecoResumo,
-  formatarValorEntrega,
-  maskCep,
-} from '../lib/endereco';
-import {
-  ORDEM_STATUS,
-  proximoStatus,
-  rotuloProximaAcao,
-  rotuloStatus,
-  tituloCardPedido,
-} from '../lib/statusPedido';
-import { formatarTempoDecorrido } from '../lib/tempo';
+import { proximidadeAgendamento } from '../lib/agendaProxima';
 import { PedidoAdmin, StatusPedido } from '../types';
 
 type Aba = 'agora' | 'agendados' | 'finalizados';
-
-function enderecoDoPedido(pedido: PedidoAdmin): EnderecoEntrega | null {
-  if (
-    !pedido.entregaCep ||
-    !pedido.entregaLogradouro ||
-    !pedido.entregaNumero ||
-    !pedido.entregaBairro ||
-    !pedido.entregaCidade ||
-    !pedido.entregaEstado
-  ) {
-    return null;
-  }
-  return {
-    cep: pedido.entregaCep,
-    logradouro: pedido.entregaLogradouro,
-    numero: pedido.entregaNumero,
-    complemento: pedido.entregaComplemento,
-    bairro: pedido.entregaBairro,
-    cidade: pedido.entregaCidade,
-    estado: pedido.entregaEstado,
-    referencia: pedido.entregaReferencia,
-  };
-}
-
-function detalhePagamento(pedido: PedidoAdmin): string {
-  if (pedido.formaPagamento === 'dinheiro') {
-    return pedido.precisaTroco
-      ? `Dinheiro (troco para R$ ${(pedido.trocoPara ?? 0).toFixed(2)})`
-      : 'Dinheiro (sem troco)';
-  }
-  if (pedido.formaPagamento === 'cartao') {
-    return `Cartão - ${pedido.tipoCartao === 'credito' ? 'Crédito' : 'Débito'}`;
-  }
-  if (pedido.formaPagamento === 'pix') return 'Pix';
-  return pedido.formaPagamento;
-}
-
-function formatarData(iso: string): string {
-  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
 
 function inicioDoDia(data: Date): Date {
   return new Date(data.getFullYear(), data.getMonth(), data.getDate());
@@ -95,207 +42,67 @@ function agruparPorData(lista: PedidoAdmin[]): { rotulo: string; pedidos: Pedido
   return grupos;
 }
 
-const BADGE_COR_STATUS: Record<StatusPedido, 'primary' | 'secondary' | 'gray' | 'red' | 'yellow'> =
-  {
-    recebido: 'red',
-    em_preparo: 'yellow',
-    pronto: 'secondary',
-    entregue: 'primary',
-    finalizado: 'gray',
-  };
-
-function EnderecoPedido({ pedido }: { pedido: PedidoAdmin }) {
-  const [expandido, setExpandido] = useState(false);
-  const [copiado, setCopiado] = useState(false);
-  const endereco = enderecoDoPedido(pedido);
-
-  if (!endereco) {
-    return <p className="text-xs text-gray-400">Endereço não informado</p>;
-  }
-
-  async function copiarEndereco() {
-    if (!endereco) return;
-    try {
-      await navigator.clipboard.writeText(formatarEnderecoCompleto(endereco).join('\n'));
-      setCopiado(true);
-      setTimeout(() => setCopiado(false), 2000);
-    } catch {
-      // clipboard indisponível — sem feedback, lojista copia manualmente
-    }
-  }
-
-  return (
-    <div className="text-xs text-gray-600">
-      <p>{formatarEnderecoResumo(endereco)}</p>
-      <div className="mt-1 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setExpandido((v) => !v)}
-          className="font-medium text-primary-hover hover:underline"
-        >
-          {expandido ? 'Ocultar endereço' : 'Ver endereço completo'}
-        </button>
-        <button
-          type="button"
-          onClick={copiarEndereco}
-          className="font-medium text-primary-hover hover:underline"
-        >
-          {copiado ? 'Copiado!' : 'Copiar endereço'}
-        </button>
-      </div>
-      {expandido && (
-        <ul className="mt-1 list-inside list-disc text-gray-500">
-          <li>CEP: {maskCep(endereco.cep)}</li>
-          <li>
-            {endereco.logradouro}, {endereco.numero}
-            {endereco.complemento ? ` - ${endereco.complemento}` : ''}
-          </li>
-          <li>{endereco.bairro}</li>
-          <li>
-            {endereco.cidade}/{endereco.estado}
-          </li>
-          {endereco.referencia && <li>Referência: {endereco.referencia}</li>}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-function PedidoCard({
-  pedido,
-  destacado,
-  aoMudarStatus,
-}: {
-  pedido: PedidoAdmin;
-  destacado: boolean;
-  aoMudarStatus: (pedido: PedidoAdmin, status: StatusPedido) => void;
-}) {
-  const proximo = proximoStatus(pedido.status);
-  const rotuloAcao = rotuloProximaAcao(pedido.status, pedido.formaRecebimento);
-
-  return (
-    <Card
-      className={`flex flex-col gap-3 transition-shadow ${
-        destacado ? 'ring-2 ring-primary shadow-card-hover' : ''
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-base font-bold text-gray-800">#{pedido.numero}</span>
-            <Badge cor={BADGE_COR_STATUS[pedido.status]}>
-              {tituloCardPedido(pedido.status, pedido.formaRecebimento)}
-            </Badge>
-          </div>
-          <p className="mt-0.5 text-xs text-gray-500">{formatarTempoDecorrido(pedido.criadoEm)}</p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <Badge cor="gray">
-            {pedido.formaRecebimento === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'}
-          </Badge>
-          {pedido.tipoPedido === 'agendado' && <Badge cor="secondary">📅 Agendado</Badge>}
-        </div>
-      </div>
-
-      {pedido.tipoPedido === 'agendado' && pedido.dataAgendamento && (
-        <p className="-mt-2 text-sm font-semibold text-secondary-hover">
-          {formatarData(pedido.dataAgendamento)}
-        </p>
-      )}
-
-      <div>
-        <p className="font-medium text-gray-800">{pedido.clienteNome}</p>
-        <p className="text-xs text-gray-500">{pedido.clienteTelefone}</p>
-      </div>
-
-      <ul className="text-sm text-gray-600">
-        {pedido.itens.map((item, i) => (
-          <li key={i}>
-            {item.quantidade}x {item.nome}
-            {item.opcao ? ` (${item.opcao})` : ''}
-            {item.observacao && (
-              <span className="block text-xs italic text-gray-400">Obs: {item.observacao}</span>
-            )}
-          </li>
-        ))}
-      </ul>
-
-      <div className="text-sm text-gray-600">
-        {pedido.formaRecebimento === 'entrega' ? (
-          <div>
-            <p>
-              Entrega - {pedido.bairroEntregaNome} ({formatarValorEntrega(pedido.valorEntrega)})
-            </p>
-            <div className="mt-1">
-              <EnderecoPedido pedido={pedido} />
-            </div>
-          </div>
-        ) : (
-          'Retirada no local'
-        )}
-      </div>
-
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-gray-600">{detalhePagamento(pedido)}</span>
-        <span className="font-semibold text-gray-800">R$ {pedido.total.toFixed(2)}</span>
-      </div>
-
-      {rotuloAcao && proximo && (
-        <Button
-          type="button"
-          tamanho="md"
-          className="w-full justify-center"
-          onClick={() => aoMudarStatus(pedido, proximo)}
-        >
-          {rotuloAcao}
-        </Button>
-      )}
-
-      <details className="group">
-        <summary className="cursor-pointer list-none text-xs font-medium text-gray-400 transition-colors hover:text-gray-600">
-          Alterar status manualmente
-        </summary>
-        <div className="mt-2 flex flex-wrap gap-1">
-          {ORDEM_STATUS.map((status) => {
-            const ativo = pedido.status === status;
-            return (
-              <button
-                key={status}
-                type="button"
-                onClick={() => aoMudarStatus(pedido, status)}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
-                  ativo ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {rotuloStatus(status, pedido.formaRecebimento)}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-1 text-xs text-gray-400">{formatarData(pedido.criadoEm)}</p>
-      </details>
-    </Card>
-  );
-}
-
 export function PainelPedidos() {
   const { pedidos, carregandoPedidos, novosIds, atualizarPedidoLocal } = useNotificacoes();
   const [aba, setAba] = useState<Aba>('agora');
+  const [pedidoCancelando, setPedidoCancelando] = useState<PedidoAdmin | null>(null);
+  const [erroTransicao, setErroTransicao] = useState<string | null>(null);
 
   async function mudarStatus(pedido: PedidoAdmin, status: StatusPedido) {
-    const atualizado = await api<PedidoAdmin>(`/api/admin/pedidos/${pedido.id}/status`, {
-      method: 'PATCH',
-      autenticado: true,
-      body: { status },
-    });
+    try {
+      // Só atualiza a UI depois da resposta do backend — ele é a autoridade da
+      // transição (drag/botão nunca move o card por conta própria); em erro,
+      // o card simplesmente nunca muda de coluna/estado.
+      const atualizado = await api<PedidoAdmin>(`/api/admin/pedidos/${pedido.id}/status`, {
+        method: 'PATCH',
+        autenticado: true,
+        body: { status },
+      });
+      atualizarPedidoLocal(atualizado);
+      setErroTransicao(null);
+    } catch (e) {
+      const mensagem = e instanceof Error ? e.message : null;
+      setErroTransicao(
+        mensagem
+          ? `Pedido #${pedido.numero}: ${mensagem}`
+          : `Não foi possível mover o pedido #${pedido.numero}. Tente de novo.`,
+      );
+      setTimeout(() => setErroTransicao(null), 5000);
+    }
+  }
+
+  async function confirmarCancelamento(motivo: string) {
+    if (!pedidoCancelando) return;
+    const atualizado = await api<PedidoAdmin>(
+      `/api/admin/pedidos/${pedidoCancelando.id}/cancelar`,
+      {
+        method: 'POST',
+        autenticado: true,
+        body: { motivo },
+      },
+    );
     atualizarPedidoLocal(atualizado);
+    setPedidoCancelando(null);
   }
 
   if (carregandoPedidos) return <Loading />;
 
-  const pedidosAgora = pedidos.filter(
+  const agora = new Date();
+
+  const pedidosAgoraImediatos = pedidos.filter(
     (p) => p.tipoPedido === 'imediato' && p.status !== 'finalizado',
   );
+  // Agendado que já entrou na janela operacional (mesmo limiar usado no Dashboard e nas
+  // notificações — ver agendaProxima.ts) aparece também na Central, sem sair da aba Agendados.
+  const pedidosAgendadosNaJanela = pedidos.filter((p) => {
+    if (p.tipoPedido !== 'agendado' || !p.dataAgendamento || p.status === 'finalizado') {
+      return false;
+    }
+    const proximidade = proximidadeAgendamento(p.dataAgendamento, agora);
+    return proximidade === 'atrasado' || proximidade === 'proximo';
+  });
+  const pedidosOperacionais = [...pedidosAgoraImediatos, ...pedidosAgendadosNaJanela];
+
   const pedidosAgendados = pedidos
     .filter((p) => p.tipoPedido === 'agendado' && p.status !== 'finalizado')
     .sort(
@@ -308,7 +115,7 @@ export function PainelPedidos() {
   const gruposAgendados = agruparPorData(pedidosAgendados);
 
   const ABAS: { chave: Aba; rotulo: string; contagem: number }[] = [
-    { chave: 'agora', rotulo: 'Agora', contagem: pedidosAgora.length },
+    { chave: 'agora', rotulo: 'Agora', contagem: pedidosOperacionais.length },
     { chave: 'agendados', rotulo: 'Agendados', contagem: pedidosAgendados.length },
     { chave: 'finalizados', rotulo: 'Finalizados', contagem: pedidosFinalizados.length },
   ];
@@ -316,6 +123,8 @@ export function PainelPedidos() {
   return (
     <div className="flex flex-col gap-3">
       <h2 className="text-lg font-semibold text-gray-800">Pedidos</h2>
+
+      {erroTransicao && <Alert tipo="erro">{erroTransicao}</Alert>}
 
       <div className="flex gap-4 border-b">
         {ABAS.map((item) => (
@@ -336,26 +145,12 @@ export function PainelPedidos() {
       </div>
 
       {aba === 'agora' && (
-        <>
-          {pedidosAgora.length === 0 ? (
-            <EmptyState
-              icone="🧾"
-              titulo="Nenhum pedido em andamento"
-              descricao="Assim que um cliente fizer um pedido pra agora, ele aparece aqui."
-            />
-          ) : (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
-              {pedidosAgora.map((pedido) => (
-                <PedidoCard
-                  key={pedido.id}
-                  pedido={pedido}
-                  destacado={novosIds.has(pedido.id)}
-                  aoMudarStatus={mudarStatus}
-                />
-              ))}
-            </div>
-          )}
-        </>
+        <CentralOperacional
+          pedidos={pedidosOperacionais}
+          novosIds={novosIds}
+          aoMudarStatus={mudarStatus}
+          aoAbrirCancelamento={setPedidoCancelando}
+        />
       )}
 
       {aba === 'agendados' && (
@@ -380,6 +175,7 @@ export function PainelPedidos() {
                         pedido={pedido}
                         destacado={novosIds.has(pedido.id)}
                         aoMudarStatus={mudarStatus}
+                        aoCancelar={setPedidoCancelando}
                       />
                     ))}
                   </div>
@@ -411,6 +207,14 @@ export function PainelPedidos() {
             </div>
           )}
         </>
+      )}
+
+      {pedidoCancelando && (
+        <ModalCancelarPedido
+          pedido={pedidoCancelando}
+          aoConfirmar={confirmarCancelamento}
+          aoFechar={() => setPedidoCancelando(null)}
+        />
       )}
     </div>
   );

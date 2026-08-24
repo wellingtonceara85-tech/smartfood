@@ -151,6 +151,7 @@ model Pedido {
   entregaEstado      String?   @map("entrega_estado")
   entregaReferencia  String?   @map("entrega_referencia")
   status             String    @default("recebido")
+  motivoCancelamento String?   @map("motivo_cancelamento")
   tipoPedido         String    @default("imediato") @map("tipo_pedido")
   dataAgendamento    DateTime? @map("data_agendamento")
   total              Decimal   @db.Decimal(10, 2)

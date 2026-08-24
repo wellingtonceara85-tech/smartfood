@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { formatarAgendamentoCurto } from '../../lib/agendaProxima';
 import { formatarTempoDecorrido } from '../../lib/tempo';
 import { useNotificacoes } from '../../context/NotificacoesContext';
@@ -154,6 +155,12 @@ export function SininhoNotificacoes() {
               />
             </label>
             <ItemPermissaoNotificacao />
+            <Link
+              to="/painel/configuracoes"
+              className="text-xs font-semibold text-primary-hover hover:underline"
+            >
+              ⚙️ Configurar som e alertas
+            </Link>
           </div>
         </div>
       )}

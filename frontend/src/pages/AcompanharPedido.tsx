@@ -53,6 +53,7 @@ export function AcompanharPedido() {
   // Pro cliente, "finalizado" (arquivamento interno do lojista) aparece como entregue/retirado.
   const statusExibido = pedido.status === 'finalizado' ? 'entregue' : pedido.status;
   const passoAtual = ORDEM_STATUS_CLIENTE.indexOf(statusExibido);
+  const cancelado = pedido.status === 'cancelado';
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8">
@@ -75,24 +76,35 @@ export function AcompanharPedido() {
           </div>
         )}
 
-        <div className="my-6 flex items-center justify-between">
-          {ORDEM_STATUS_CLIENTE.map((status, i) => (
-            <div key={status} className="flex flex-1 flex-col items-center">
-              <div
-                className={`h-3 w-3 rounded-full transition-colors ${i <= passoAtual ? 'bg-primary' : 'bg-gray-200'}`}
-              />
-              {i < ORDEM_STATUS_CLIENTE.length - 1 && (
-                <div
-                  className={`mt-1.5 h-0.5 w-full transition-colors ${i < passoAtual ? 'bg-primary' : 'bg-gray-200'}`}
-                />
-              )}
+        {cancelado ? (
+          <div className="my-6 rounded-lg bg-red-50 px-3 py-3 text-center">
+            <p className="text-lg font-semibold text-red-700">❌ Pedido cancelado</p>
+            <p className="mt-1 text-sm text-red-600">
+              Fale com a loja pelo WhatsApp se tiver alguma dúvida.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="my-6 flex items-center justify-between">
+              {ORDEM_STATUS_CLIENTE.map((status, i) => (
+                <div key={status} className="flex flex-1 flex-col items-center">
+                  <div
+                    className={`h-3 w-3 rounded-full transition-colors ${i <= passoAtual ? 'bg-primary' : 'bg-gray-200'}`}
+                  />
+                  {i < ORDEM_STATUS_CLIENTE.length - 1 && (
+                    <div
+                      className={`mt-1.5 h-0.5 w-full transition-colors ${i < passoAtual ? 'bg-primary' : 'bg-gray-200'}`}
+                    />
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <p className="text-center text-lg font-semibold text-primary-hover">
-          {rotuloStatus(statusExibido, pedido.formaRecebimento)}
-        </p>
+            <p className="text-center text-lg font-semibold text-primary-hover">
+              {rotuloStatus(statusExibido, pedido.formaRecebimento)}
+            </p>
+          </>
+        )}
 
         <ul className="mt-6 flex flex-col gap-1 border-t pt-4 text-sm text-gray-600">
           {pedido.itens.map((item, i) => (

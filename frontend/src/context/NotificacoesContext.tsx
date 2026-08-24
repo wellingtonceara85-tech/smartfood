@@ -19,8 +19,18 @@ import {
   INTERVALO_POLLING_PEDIDOS_MS,
   marcarTodasComoLidas,
   NotificacaoPainel,
+  pedidosPendentesAlerta,
 } from '../lib/notificacoes';
-import { lerPreferenciaSom, salvarPreferenciaSom, tocarAlertaSonoro } from '../lib/somPedido';
+import {
+  lerDuracaoAlerta,
+  lerIntervaloRepeticao,
+  lerPreferenciaSom,
+  lerRepeticaoAtiva,
+  lerSomEscolhido,
+  pararAlertaSonoro,
+  salvarPreferenciaSom,
+  tocarAlertaSonoro,
+} from '../lib/somPedido';
 import { PedidoAdmin } from '../types';
 
 interface NotificacoesContextValue {
@@ -31,6 +41,8 @@ interface NotificacoesContextValue {
   naoLidas: number;
   somAtivado: boolean;
   alternarSom: () => void;
+  alertaTocando: boolean;
+  silenciarAlerta: () => void;
   permissaoNotificacao: NotificationPermission | 'indisponivel';
   pedirPermissaoNotificacao: () => void;
   marcarNotificacoesComoLidas: () => void;
@@ -59,6 +71,7 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
   const [novosIds, setNovosIds] = useState<Set<string>>(new Set());
   const [notificacoes, setNotificacoes] = useState<NotificacaoPainel[]>([]);
   const [somAtivado, setSomAtivado] = useState(lerPreferenciaSom);
+  const [alertaTocando, setAlertaTocando] = useState(false);
   const [ultimoPedidoNovo, setUltimoPedidoNovo] = useState<PedidoAdmin | null>(null);
   const [permissaoNotificacao, setPermissaoNotificacao] = useState<
     NotificationPermission | 'indisponivel'
@@ -66,6 +79,44 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
 
   const idsConhecidosRef = useRef<Set<string> | null>(null);
   const idsAgendamentoNotificadosRef = useRef<Set<string>>(new Set());
+  const pedidosRef = useRef<PedidoAdmin[]>([]);
+  const cicloAgendadoRef = useRef(false);
+  const repeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fimVisualTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Controlador único do alerta sonoro persistente pra sessão inteira do
+   * painel — evita qualquer sobreposição de áudio (sempre cancela o timer de
+   * repetição anterior antes de agendar um novo) e decide sozinho quando
+   * parar: se não há mais pedido "recebido" (aguardando aceite) ou o som foi
+   * desligado, o ciclo simplesmente não se reagenda.
+   */
+  const dispararCicloAlerta = useCallback(() => {
+    if (repeatTimeoutRef.current) {
+      clearTimeout(repeatTimeoutRef.current);
+      repeatTimeoutRef.current = null;
+    }
+
+    const pendentes = pedidosPendentesAlerta(pedidosRef.current);
+    if (pendentes.length === 0 || !lerPreferenciaSom()) {
+      cicloAgendadoRef.current = false;
+      setAlertaTocando(false);
+      return;
+    }
+
+    const duracaoSegundos = lerDuracaoAlerta();
+    tocarAlertaSonoro(lerSomEscolhido(), duracaoSegundos);
+    setAlertaTocando(true);
+    if (fimVisualTimeoutRef.current) clearTimeout(fimVisualTimeoutRef.current);
+    fimVisualTimeoutRef.current = setTimeout(() => setAlertaTocando(false), duracaoSegundos * 1000);
+
+    if (lerRepeticaoAtiva()) {
+      cicloAgendadoRef.current = true;
+      repeatTimeoutRef.current = setTimeout(dispararCicloAlerta, lerIntervaloRepeticao() * 1000);
+    } else {
+      cicloAgendadoRef.current = false;
+    }
+  }, []);
 
   const buscarPedidos = useCallback(async () => {
     try {
@@ -78,8 +129,9 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
         new Date(),
       );
 
+      pedidosRef.current = resp;
+
       if (pedidosNovos.length > 0) {
-        if (lerPreferenciaSom()) tocarAlertaSonoro();
         setNovosIds((atual) => new Set([...atual, ...pedidosNovos.map((p) => p.id)]));
         setUltimoPedidoNovo(pedidosNovos[pedidosNovos.length - 1]);
 
@@ -98,6 +150,13 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Dispara/realimenta o ciclo de alerta sempre que houver pedido pendente
+      // sem ciclo já agendado — cobre tanto o pedido que acabou de chegar
+      // quanto o caso de recarregar a página com um pedido já pendente.
+      if (!cicloAgendadoRef.current && pedidosPendentesAlerta(resp).length > 0) {
+        dispararCicloAlerta();
+      }
+
       for (const p of agendamentosProximos) idsAgendamentoNotificadosRef.current.add(p.id);
 
       const novasNotificacoes = [
@@ -113,7 +172,7 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
     } finally {
       setCarregandoPedidos(false);
     }
-  }, []);
+  }, [dispararCicloAlerta]);
 
   useEffect(() => {
     buscarPedidos();
@@ -123,12 +182,36 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(intervalo);
   }, [buscarPedidos]);
 
+  useEffect(() => {
+    return () => {
+      if (repeatTimeoutRef.current) clearTimeout(repeatTimeoutRef.current);
+      if (fimVisualTimeoutRef.current) clearTimeout(fimVisualTimeoutRef.current);
+      pararAlertaSonoro();
+    };
+  }, []);
+
   function alternarSom() {
     setSomAtivado((atual) => {
       const novo = !atual;
       salvarPreferenciaSom(novo);
+      if (!novo) {
+        // Som desligado no meio de um alerta: para na hora, sem deixar tocando "escondido".
+        if (repeatTimeoutRef.current) {
+          clearTimeout(repeatTimeoutRef.current);
+          repeatTimeoutRef.current = null;
+        }
+        cicloAgendadoRef.current = false;
+        pararAlertaSonoro();
+        setAlertaTocando(false);
+      }
       return novo;
     });
+  }
+
+  /** 🔕 Silenciar — só para o som atual. Não mexe no pedido nem cancela a repetição futura. */
+  function silenciarAlerta() {
+    pararAlertaSonoro();
+    setAlertaTocando(false);
   }
 
   function pedirPermissaoNotificacao() {
@@ -141,9 +224,11 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
   }
 
   function atualizarPedidoLocal(pedidoAtualizado: PedidoAdmin) {
-    setPedidos((atuais) =>
-      atuais.map((p) => (p.id === pedidoAtualizado.id ? pedidoAtualizado : p)),
-    );
+    setPedidos((atuais) => {
+      const novos = atuais.map((p) => (p.id === pedidoAtualizado.id ? pedidoAtualizado : p));
+      pedidosRef.current = novos;
+      return novos;
+    });
   }
 
   return (
@@ -156,6 +241,8 @@ export function NotificacoesProvider({ children }: { children: ReactNode }) {
         naoLidas: contarNaoLidas(notificacoes),
         somAtivado,
         alternarSom,
+        alertaTocando,
+        silenciarAlerta,
         permissaoNotificacao,
         pedirPermissaoNotificacao,
         marcarNotificacoesComoLidas,

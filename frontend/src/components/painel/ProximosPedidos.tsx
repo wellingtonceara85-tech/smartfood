@@ -5,19 +5,9 @@ import { EmptyState } from '../ui/EmptyState';
 import { formatarAgendamentoCurto, ordenarProximosPedidos } from '../../lib/agendaProxima';
 import { rotuloStatus } from '../../lib/statusPedido';
 import { PedidoAdmin } from '../../types';
+import { BADGE_COR_STATUS } from './PedidoCard';
 
 const LIMITE_EXIBIDO = 5;
-
-const BADGE_COR_STATUS: Record<
-  PedidoAdmin['status'],
-  'primary' | 'secondary' | 'gray' | 'red' | 'yellow'
-> = {
-  recebido: 'red',
-  em_preparo: 'yellow',
-  pronto: 'secondary',
-  entregue: 'primary',
-  finalizado: 'gray',
-};
 
 function ItemProximoPedido({ pedido, destacado }: { pedido: PedidoAdmin; destacado: boolean }) {
   return (

@@ -7,6 +7,7 @@ import { HEX_REGEX, normalizarCor } from '../utils/cor';
 import { latitudeValida, longitudeValida, validarFaixasEntrega } from '../utils/distancia';
 import { calcularAberto } from '../utils/horario';
 import { montarPendenciasLoja } from '../utils/pendenciasLoja';
+import { cancelamentoPermitido, STATUS_PEDIDO, transicaoValida } from '../utils/statusPedido';
 import { calcularTrial } from '../utils/trial';
 
 const corHexSchema = z
@@ -34,8 +35,6 @@ function serializarPedido(pedido: Pedido) {
     trocoPara: pedido.trocoPara === null ? null : Number(pedido.trocoPara),
   };
 }
-
-const STATUS_PEDIDO = ['recebido', 'em_preparo', 'pronto', 'entregue', 'finalizado'] as const;
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth);
@@ -530,12 +529,48 @@ adminRouter.patch('/pedidos/:id/status', async (req, res) => {
   const parsed = atualizarStatusSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ erro: 'Status inválido' });
 
+  // Cancelamento exige motivo — só o endpoint dedicado /cancelar pode gravar esse status.
+  if (parsed.data.status === 'cancelado') {
+    return res.status(400).json({ erro: 'Use o endpoint de cancelamento para cancelar um pedido' });
+  }
+
   const existente = await prisma.pedido.findFirst({ where: { id: req.params.id, lojaId } });
   if (!existente) return res.status(404).json({ erro: 'Pedido não encontrado' });
+
+  if (!transicaoValida(existente.status, parsed.data.status)) {
+    return res.status(409).json({ erro: 'Transição de status inválida' });
+  }
 
   const pedido = await prisma.pedido.update({
     where: { id: existente.id },
     data: { status: parsed.data.status },
+  });
+  res.json(serializarPedido(pedido));
+});
+
+const cancelarPedidoSchema = z.object({
+  motivo: z.string().trim().min(3, 'Informe o motivo do cancelamento').max(300),
+});
+
+adminRouter.post('/pedidos/:id/cancelar', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = cancelarPedidoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ erro: parsed.error.issues[0]?.message ?? 'Motivo inválido' });
+  }
+
+  const existente = await prisma.pedido.findFirst({ where: { id: req.params.id, lojaId } });
+  if (!existente) return res.status(404).json({ erro: 'Pedido não encontrado' });
+
+  if (!cancelamentoPermitido(existente.status)) {
+    return res.status(409).json({ erro: 'Este pedido não pode mais ser cancelado' });
+  }
+
+  const pedido = await prisma.pedido.update({
+    where: { id: existente.id },
+    data: { status: 'cancelado', motivoCancelamento: parsed.data.motivo },
   });
   res.json(serializarPedido(pedido));
 });

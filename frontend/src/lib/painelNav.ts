@@ -17,6 +17,7 @@ export const ITENS_NAV_PAINEL: ItemNavPainel[] = [
   { rota: '/painel/produtos', rotulo: 'Produtos', rotuloCurto: 'Produtos', icone: '🍔' },
   { rota: '/painel/entrega', rotulo: 'Entrega', rotuloCurto: 'Entrega', icone: '🛵' },
   { rota: '/painel/loja', rotulo: 'Minha loja', rotuloCurto: 'Loja', icone: '🏪' },
+  { rota: '/painel/configuracoes', rotulo: 'Configurações', rotuloCurto: 'Ajustes', icone: '⚙️' },
 ];
 
 /** Considera ativo o item cuja rota é prefixo do pathname atual (`/painel/pedidos/123` ainda ativa "Pedidos"). */

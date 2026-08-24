@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Outlet } from 'react-router-dom';
 import { AvisoTrial } from '../components/AvisoTrial';
+import { BotaoSilenciarAlerta } from '../components/painel/BotaoSilenciarAlerta';
 import { BottomNavPainel } from '../components/painel/BottomNavPainel';
 import { SidebarPainel } from '../components/painel/SidebarPainel';
 import { SininhoNotificacoes } from '../components/painel/SininhoNotificacoes';
@@ -86,6 +87,7 @@ export function PainelLayout() {
 
         <BottomNavPainel />
         <ToastNovoPedido />
+        <BotaoSilenciarAlerta />
       </div>
     </NotificacoesProvider>
   );

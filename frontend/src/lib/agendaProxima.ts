@@ -53,7 +53,13 @@ export function formatarAgendamentoCurto(
  * agendamentos se aproximando, depois o resto do fluxo ativo.
  */
 function prioridadePedido(pedido: PedidoAdmin, agora: Date): number {
-  if (pedido.status === 'entregue' || pedido.status === 'finalizado') return 99;
+  if (
+    pedido.status === 'entregue' ||
+    pedido.status === 'finalizado' ||
+    pedido.status === 'cancelado'
+  ) {
+    return 99;
+  }
 
   if (pedido.tipoPedido === 'agendado' && pedido.dataAgendamento) {
     const proximidade = proximidadeAgendamento(pedido.dataAgendamento, agora);
@@ -64,6 +70,7 @@ function prioridadePedido(pedido: PedidoAdmin, agora: Date): number {
   }
 
   if (pedido.status === 'recebido') return 1;
+  if (pedido.status === 'confirmado') return 1;
   if (pedido.status === 'em_preparo') return 1;
   if (pedido.status === 'pronto') return 3;
   return 5;
@@ -79,7 +86,7 @@ export function ordenarProximosPedidos(
   agora: Date = new Date(),
 ): PedidoAdmin[] {
   return pedidos
-    .filter((p) => p.status !== 'entregue' && p.status !== 'finalizado')
+    .filter((p) => p.status !== 'entregue' && p.status !== 'finalizado' && p.status !== 'cancelado')
     .map((pedido) => ({ pedido, prioridade: prioridadePedido(pedido, agora) }))
     .sort((a, b) => {
       if (a.prioridade !== b.prioridade) return a.prioridade - b.prioridade;

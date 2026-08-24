@@ -25,6 +25,7 @@ function pedido(overrides: Partial<PedidoAdmin> = {}): PedidoAdmin {
     trocoPara: null,
     tipoCartao: null,
     status: 'recebido',
+    motivoCancelamento: null,
     tipoPedido: 'imediato',
     dataAgendamento: null,
     total: 50,
@@ -108,11 +109,12 @@ describe('ordenarProximosPedidos', () => {
     expect(resultado[1].id).toBe('distante');
   });
 
-  it('exclui pedidos entregues e finalizados', () => {
+  it('exclui pedidos entregues, finalizados e cancelados', () => {
     const entregue = pedido({ id: 'entregue', status: 'entregue' });
     const finalizado = pedido({ id: 'finalizado', status: 'finalizado' });
+    const cancelado = pedido({ id: 'cancelado', status: 'cancelado' });
     const ativo = pedido({ id: 'ativo', status: 'recebido' });
-    const resultado = ordenarProximosPedidos([entregue, finalizado, ativo], AGORA);
+    const resultado = ordenarProximosPedidos([entregue, finalizado, cancelado, ativo], AGORA);
     expect(resultado).toHaveLength(1);
     expect(resultado[0].id).toBe('ativo');
   });

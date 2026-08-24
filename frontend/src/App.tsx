@@ -14,6 +14,7 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { LojaPublica } from './pages/LojaPublica';
 import { PainelBairros } from './pages/PainelBairros';
+import { PainelConfiguracoes } from './pages/PainelConfiguracoes';
 import { PainelDashboard } from './pages/PainelDashboard';
 import { PainelLayout } from './pages/PainelLayout';
 import { PainelLoja } from './pages/PainelLoja';
@@ -42,6 +43,7 @@ export function App() {
           <Route path="pedidos" element={<PainelPedidos />} />
           <Route path="entrega" element={<PainelBairros />} />
           <Route path="loja" element={<PainelLoja />} />
+          <Route path="configuracoes" element={<PainelConfiguracoes />} />
         </Route>
       </Route>
 

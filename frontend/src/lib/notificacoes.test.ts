@@ -9,6 +9,7 @@ import {
   marcarTodasComoLidas,
   MAX_NOTIFICACOES,
   NotificacaoPainel,
+  pedidosPendentesAlerta,
 } from './notificacoes';
 import { PedidoAdmin } from '../types';
 
@@ -29,6 +30,7 @@ function pedido(overrides: Partial<PedidoAdmin> = {}): PedidoAdmin {
     trocoPara: null,
     tipoCartao: null,
     status: 'recebido',
+    motivoCancelamento: null,
     tipoPedido: 'imediato',
     dataAgendamento: null,
     total: 50,
@@ -121,6 +123,29 @@ describe('adicionarNotificacoes', () => {
     const resultado = adicionarNotificacoes(atuais, [nova]);
     expect(resultado).toHaveLength(MAX_NOTIFICACOES);
     expect(resultado[0].id).toBe(nova.id);
+  });
+});
+
+describe('pedidosPendentesAlerta', () => {
+  it('só conta pedidos aguardando aceite ("recebido")', () => {
+    const pedidos = [
+      pedido({ id: '1', status: 'recebido' }),
+      pedido({ id: '2', status: 'confirmado' }),
+      pedido({ id: '3', status: 'em_preparo' }),
+      pedido({ id: '4', status: 'recebido' }),
+    ];
+    expect(pedidosPendentesAlerta(pedidos).map((p) => p.id)).toEqual(['1', '4']);
+  });
+
+  it('aceitar o pedido (mudar pra confirmado) remove a pendência sonora dele', () => {
+    const antes = [pedido({ id: '1', status: 'recebido' })];
+    const depois = [pedido({ id: '1', status: 'confirmado' })];
+    expect(pedidosPendentesAlerta(antes)).toHaveLength(1);
+    expect(pedidosPendentesAlerta(depois)).toHaveLength(0);
+  });
+
+  it('lista vazia quando não há pedido pendente', () => {
+    expect(pedidosPendentesAlerta([])).toEqual([]);
   });
 });
 

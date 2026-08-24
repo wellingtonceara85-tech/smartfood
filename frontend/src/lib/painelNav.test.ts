@@ -20,8 +20,8 @@ describe('itemAtivo', () => {
 });
 
 describe('ITENS_NAV_PAINEL', () => {
-  it('tem exatamente os 5 destinos da missão, sem duplicar rotas', () => {
-    expect(ITENS_NAV_PAINEL).toHaveLength(5);
+  it('tem exatamente os 6 destinos da missão, sem duplicar rotas', () => {
+    expect(ITENS_NAV_PAINEL).toHaveLength(6);
     const rotas = ITENS_NAV_PAINEL.map((i) => i.rota);
     expect(new Set(rotas).size).toBe(rotas.length);
   });

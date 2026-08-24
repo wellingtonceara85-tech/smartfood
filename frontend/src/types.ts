@@ -157,7 +157,8 @@ export interface BoasVindasGeradas {
   mensagemBoasVindas: string;
 }
 
-export type StatusPedido = 'recebido' | 'em_preparo' | 'pronto' | 'entregue' | 'finalizado';
+export type StatusPedido =
+  'recebido' | 'confirmado' | 'em_preparo' | 'pronto' | 'entregue' | 'finalizado' | 'cancelado';
 export type FormaPagamento = 'dinheiro' | 'cartao' | 'pix';
 export type TipoPedido = 'imediato' | 'agendado';
 
@@ -212,6 +213,7 @@ export interface PedidoAdmin extends EnderecoEntregaPedido {
   trocoPara: number | null;
   tipoCartao: 'debito' | 'credito' | null;
   status: StatusPedido;
+  motivoCancelamento: string | null;
   tipoPedido: TipoPedido;
   dataAgendamento: string | null;
   total: number;

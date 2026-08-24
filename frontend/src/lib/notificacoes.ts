@@ -50,7 +50,13 @@ export function detectarAgendamentosProximos(
 ): PedidoAdmin[] {
   return pedidos.filter((pedido) => {
     if (pedido.tipoPedido !== 'agendado' || !pedido.dataAgendamento) return false;
-    if (pedido.status === 'entregue' || pedido.status === 'finalizado') return false;
+    if (
+      pedido.status === 'entregue' ||
+      pedido.status === 'finalizado' ||
+      pedido.status === 'cancelado'
+    ) {
+      return false;
+    }
     if (idsJaNotificados.has(pedido.id)) return false;
 
     const proximidade = proximidadeAgendamento(pedido.dataAgendamento, agora);
@@ -107,4 +113,16 @@ export function contarNaoLidas(notificacoes: NotificacaoPainel[]): number {
 
 export function marcarTodasComoLidas(notificacoes: NotificacaoPainel[]): NotificacaoPainel[] {
   return notificacoes.map((n) => (n.lida ? n : { ...n, lida: true }));
+}
+
+/**
+ * Pedidos que ainda sustentam o alerta sonoro persistente — "aguardando
+ * aceite" (status "recebido"), independente de terem acabado de chegar ou
+ * já estarem há um tempo parados aí. Sai da lista assim que o lojista
+ * confirma o pedido (ou cancela/pula pra qualquer outro status), o que
+ * automaticamente encerra a pendência sonora correspondente — não precisa de
+ * bookkeeping separado, é estado derivado de `pedidos`.
+ */
+export function pedidosPendentesAlerta(pedidos: PedidoAdmin[]): PedidoAdmin[] {
+  return pedidos.filter((p) => p.status === 'recebido');
 }
