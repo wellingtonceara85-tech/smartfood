@@ -10,6 +10,7 @@ import { AdminVisaoGeral } from './pages/AdminVisaoGeral';
 import { AjudaInstalarSmartFood } from './pages/AjudaInstalarSmartFood';
 import { AjudaWhatsAppBusiness } from './pages/AjudaWhatsAppBusiness';
 import { AtivarConta } from './pages/AtivarConta';
+import { EsqueciSenha } from './pages/EsqueciSenha';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { LojaPublica } from './pages/LojaPublica';
@@ -20,6 +21,7 @@ import { PainelLayout } from './pages/PainelLayout';
 import { PainelLoja } from './pages/PainelLoja';
 import { PainelPedidos } from './pages/PainelPedidos';
 import { PainelProdutos } from './pages/PainelProdutos';
+import { RedefinirSenha } from './pages/RedefinirSenha';
 
 export function App() {
   const { usuario } = useAuth();
@@ -57,6 +59,8 @@ export function App() {
       </Route>
 
       <Route path="/ativar-conta" element={<AtivarConta />} />
+      <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+      <Route path="/redefinir-senha" element={<RedefinirSenha />} />
       <Route path="/ajuda/whatsapp-business" element={<AjudaWhatsAppBusiness />} />
       <Route path="/ajuda/instalar-smartfood" element={<AjudaInstalarSmartFood />} />
 

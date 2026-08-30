@@ -10,7 +10,14 @@ import {
   validarAgendamento,
 } from '../utils/agendamento';
 import { conviteValido, hashToken } from '../utils/convite';
+import { enviarEmailRecuperacaoSenha } from '../utils/emailRecuperacaoSenha';
+import {
+  dataExpiracaoRecuperacao,
+  gerarTokenRecuperacao,
+  tokenRecuperacaoValido,
+} from '../utils/recuperacaoSenha';
 import { dataFimTrial } from '../utils/trial';
+import { HOSTNAMES_PRODUCAO_TURNSTILE, verificarTurnstile } from '../utils/turnstile';
 import { COR_PRIMARIA_PADRAO, COR_SECUNDARIA_PADRAO, corOuPadrao } from '../utils/cor';
 import { coordenadaValida } from '../utils/distancia';
 import {
@@ -554,4 +561,189 @@ publicRouter.post('/ativacao/:token', async (req, res) => {
       lojaId: convite.usuario.lojaId,
     },
   });
+});
+
+// --- Recuperação de senha self-service ---
+//
+// Deliberadamente um fluxo próprio, nunca reaproveitando ConviteAtivacao —
+// ver utils/recuperacaoSenha.ts. Mesma resposta neutra sempre em
+// /esqueci-senha, exista ou não o e-mail, pra nunca dar pra descobrir por
+// tentativa quais e-mails têm conta no SmartFood.
+
+function linkRedefinicaoSenha(tokenBruto: string): string {
+  return `${env.frontendUrl}/redefinir-senha?token=${tokenBruto}`;
+}
+
+// Best-effort (em memória, por instância de Cloud Function — mesma ressalva
+// documentada em limitadorUltimoPedido acima): limita quantas solicitações
+// de recuperação um IP pode disparar, já que o endpoint sempre responde 200
+// e seria um jeito barato de floodar e-mail se não tivesse nenhum limite.
+const limitadorEsqueciSenha = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const MENSAGEM_NEUTRA_ESQUECI_SENHA =
+  'Se esse e-mail estiver cadastrado e a conta já ativada, você vai receber um link para redefinir a senha em instantes.';
+
+const esqueciSenhaSchema = z.object({
+  email: z.string().email(),
+  turnstileToken: z.string().min(1, 'Verificação de segurança ausente'),
+});
+
+publicRouter.post('/esqueci-senha', limitadorEsqueciSenha, async (req, res) => {
+  const parsed = esqueciSenhaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+  }
+
+  // Turnstile some ANTES da resposta neutra — token ausente/inválido barra a
+  // solicitação com um erro próprio (isso não revela nada sobre o e-mail,
+  // só que a verificação de segurança falhou, igual aconteceria em
+  // qualquer outro formulário do site que tivesse o mesmo captcha).
+  //
+  // Em produção, `TURNSTILE_SECRET_KEY` ausente é falha fechada (recusa a
+  // solicitação) — nunca vira uma verificação pulada silenciosamente. Só em
+  // dev/teste, sem a secret configurada, a verificação é pulada (com aviso
+  // no console), pra não exigir conta na Cloudflare pra rodar localmente.
+  if (!env.turnstileSecretKey) {
+    if (env.nodeEnv === 'production') {
+      console.warn(
+        '[esqueci-senha] TURNSTILE_SECRET_KEY ausente em produção — solicitação recusada',
+      );
+      return res
+        .status(400)
+        .json({ erro: 'Verificação de segurança indisponível. Tente novamente mais tarde.' });
+    }
+    console.warn(
+      '[esqueci-senha] TURNSTILE_SECRET_KEY não configurada — verificação pulada (dev/teste)',
+    );
+  } else {
+    const turnstileValido = await verificarTurnstile(
+      parsed.data.turnstileToken,
+      env.turnstileSecretKey,
+      {
+        ip: req.ip,
+        // Só valida hostname em produção — as sitekeys/secrets de teste da
+        // Cloudflare usadas em dev/homologação devolvem "example.com", nunca
+        // os hosts reais (ver HOSTNAMES_PRODUCAO_TURNSTILE em utils/turnstile.ts).
+        hostnamesPermitidos:
+          env.nodeEnv === 'production' ? HOSTNAMES_PRODUCAO_TURNSTILE : undefined,
+      },
+    );
+    if (!turnstileValido) {
+      return res
+        .status(400)
+        .json({ erro: 'Verificação de segurança inválida ou expirada. Tente novamente.' });
+    }
+  }
+
+  // Nunca mentir pro usuário: se ninguém configurou o Resend ainda em
+  // produção, não dá pra prometer que um link "vai chegar em instantes" —
+  // essa checagem é sobre a capacidade do sistema como um todo, não sobre
+  // um e-mail específico, então responder diferente aqui não vaza nada
+  // sobre qual conta existe (é a mesma resposta pra qualquer e-mail).
+  if (env.nodeEnv === 'production' && (!env.resendApiKey || !env.resendFromEmail)) {
+    return res.status(503).json({
+      erro: 'A recuperação de senha por e-mail está temporariamente indisponível. Entre em contato com o suporte do SmartFood.',
+    });
+  }
+
+  // Sempre 200 com a mesma mensagem — a resposta nunca revela se o e-mail existe.
+  res.json({ mensagem: MENSAGEM_NEUTRA_ESQUECI_SENHA });
+
+  const usuario = await prisma.usuario.findUnique({ where: { email: parsed.data.email } });
+  // Conta inexistente ou nunca ativada (senhaHash nulo) usa o fluxo de
+  // ativação, não este — não faz sentido gerar recuperação pra ela.
+  if (!usuario || !usuario.senhaHash) return;
+
+  const { tokenBruto } = gerarTokenRecuperacao();
+  const agora = new Date();
+
+  await prisma.$transaction([
+    // Qualquer solicitação anterior ainda pendente é revogada — só o link
+    // mais recente pode ser usado, evita vários tokens válidos ao mesmo tempo.
+    prisma.recuperacaoSenha.updateMany({
+      where: { usuarioId: usuario.id, usadoEm: null, revogadoEm: null },
+      data: { revogadoEm: agora },
+    }),
+    prisma.recuperacaoSenha.create({
+      data: {
+        usuarioId: usuario.id,
+        tokenHash: hashToken(tokenBruto),
+        expiraEm: dataExpiracaoRecuperacao(agora),
+      },
+    }),
+  ]);
+
+  await enviarEmailRecuperacaoSenha({
+    para: usuario.email,
+    nome: usuario.nome,
+    link: linkRedefinicaoSenha(tokenBruto),
+  });
+});
+
+function erroRecuperacao(recuperacao: { usadoEm: Date | null } | null) {
+  if (recuperacao?.usadoEm) {
+    return { erro: 'Este link já foi utilizado.', motivo: 'usado' as const };
+  }
+  return {
+    erro: 'Link de redefinição inválido ou expirado. Solicite um novo.',
+    motivo: 'invalido' as const,
+  };
+}
+
+publicRouter.get('/redefinir-senha/:token', async (req, res) => {
+  const tokenHash = hashToken(req.params.token);
+  const recuperacao = await prisma.recuperacaoSenha.findUnique({
+    where: { tokenHash },
+    include: { usuario: true },
+  });
+
+  if (!recuperacao || !tokenRecuperacaoValido(recuperacao)) {
+    return res.status(400).json(erroRecuperacao(recuperacao));
+  }
+
+  res.json({ nome: recuperacao.usuario.nome });
+});
+
+const redefinirSenhaSchema = z
+  .object({
+    senha: z.string().min(6, 'A senha precisa ter pelo menos 6 caracteres'),
+    confirmarSenha: z.string().min(1),
+  })
+  .refine((dados) => dados.senha === dados.confirmarSenha, {
+    message: 'As senhas não conferem',
+    path: ['confirmarSenha'],
+  });
+
+publicRouter.post('/redefinir-senha/:token', async (req, res) => {
+  const parsed = redefinirSenhaSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+  }
+
+  const tokenHash = hashToken(req.params.token);
+  const recuperacao = await prisma.recuperacaoSenha.findUnique({
+    where: { tokenHash },
+    include: { usuario: true },
+  });
+
+  if (!recuperacao || !tokenRecuperacaoValido(recuperacao)) {
+    return res.status(400).json(erroRecuperacao(recuperacao));
+  }
+
+  const senhaHash = await bcrypt.hash(parsed.data.senha, 10);
+  const agora = new Date();
+
+  await prisma.$transaction([
+    prisma.usuario.update({ where: { id: recuperacao.usuarioId }, data: { senhaHash } }),
+    prisma.recuperacaoSenha.update({ where: { id: recuperacao.id }, data: { usadoEm: agora } }),
+  ]);
+
+  // Sem login automático de propósito (diferente da ativação) — o lojista
+  // confirma que a senha nova funciona entrando normalmente pelo /login.
+  res.status(204).send();
 });

@@ -27,4 +27,13 @@ export const env = {
   get frontendUrl() {
     return lido('FRONTEND_URL', 'http://localhost:3000');
   },
+  get resendApiKey() {
+    return lido('RESEND_API_KEY');
+  },
+  get resendFromEmail() {
+    return lido('RESEND_FROM_EMAIL');
+  },
+  get turnstileSecretKey() {
+    return lido('TURNSTILE_SECRET_KEY');
+  },
 };

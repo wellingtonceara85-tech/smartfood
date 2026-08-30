@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { env } from '../env';
 import { requireAuth, requirePapel } from '../middleware/auth';
 import { prisma } from '../prisma';
-import { dataExpiracaoConvite, gerarTokenConvite } from '../utils/convite';
+import { dataExpiracaoConvite, gerarTokenConvite, hashToken } from '../utils/convite';
 import { lojaElegivelParaExclusao } from '../utils/elegibilidadeExclusao';
 import {
   CAMINHO_GUIA_INSTALAR,
@@ -12,6 +12,7 @@ import {
   montarMensagemBoasVindas,
 } from '../utils/mensagemBoasVindas';
 import { montarOnboarding } from '../utils/onboarding';
+import { dataExpiracaoRecuperacao, gerarTokenRecuperacao } from '../utils/recuperacaoSenha';
 import { calcularTrial, dataFimTrial } from '../utils/trial';
 
 export const adminMasterRouter = Router();
@@ -325,6 +326,51 @@ adminMasterRouter.post('/lojas/:id/convite', async (req, res) => {
       linkGuiaWhatsapp: linkGuiaWhatsapp(),
       linkGuiaInstalar: linkGuiaInstalar(),
     }),
+  });
+});
+
+// Gera um link de recuperação de senha pro dono da loja — mesmo mecanismo
+// de token do fluxo self-service (/api/public/esqueci-senha), só que
+// disparado por uma ação autenticada do Admin Master em vez de depender do
+// envio de e-mail. Existe pra cobrir o caso de o Resend ainda não estar
+// configurado (ou falhar) em produção: o Admin Master gera o link aqui e
+// decide manualmente por qual canal repassar ao lojista — o sistema nunca
+// envia isso sozinho por nenhum canal, e o Admin Master em nenhum momento
+// vê ou define a senha em si (só o link de uso único pra redefinição).
+// Só funciona pra contas já ativas — conta ainda não ativada usa /convite.
+adminMasterRouter.post('/lojas/:id/recuperacao-senha', async (req, res) => {
+  const loja = await prisma.loja.findUnique({ where: { id: req.params.id } });
+  if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' });
+
+  const dono = await prisma.usuario.findFirst({
+    where: { lojaId: loja.id, papel: 'dono_loja' },
+  });
+  if (!dono) {
+    return res.status(404).json({ erro: 'Nenhum usuário dono encontrado para esta loja' });
+  }
+  if (dono.senhaHash == null) {
+    return res.status(400).json({
+      erro: 'Esta loja ainda não foi ativada. Use o convite de ativação, não a recuperação de senha.',
+    });
+  }
+
+  const { tokenBruto } = gerarTokenRecuperacao();
+  const agora = new Date();
+  const expiraEm = dataExpiracaoRecuperacao(agora);
+
+  await prisma.$transaction([
+    prisma.recuperacaoSenha.updateMany({
+      where: { usuarioId: dono.id, usadoEm: null, revogadoEm: null },
+      data: { revogadoEm: agora },
+    }),
+    prisma.recuperacaoSenha.create({
+      data: { usuarioId: dono.id, tokenHash: hashToken(tokenBruto), expiraEm },
+    }),
+  ]);
+
+  res.status(201).json({
+    linkRedefinicaoSenha: `${env.frontendUrl}/redefinir-senha?token=${tokenBruto}`,
+    expiraEm,
   });
 });
 

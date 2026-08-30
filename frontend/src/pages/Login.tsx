@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -45,8 +45,14 @@ export function Login() {
             required
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className="mb-4"
+            className="mb-2"
           />
+          <Link
+            to="/esqueci-senha"
+            className="mb-4 block text-right text-xs font-medium text-primary hover:underline"
+          >
+            Esqueci minha senha
+          </Link>
 
           {erro && (
             <div className="mb-3">

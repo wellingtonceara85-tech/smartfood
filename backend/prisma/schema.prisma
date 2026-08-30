@@ -18,27 +18,28 @@ enum StatusLoja {
 }
 
 model Usuario {
-  id        String    @id @default(uuid())
-  nome      String
-  email     String    @unique
+  id                  String    @id @default(uuid())
+  nome                String
+  email               String    @unique
   // Nulo enquanto o usuário está "aguardando ativação" — criado pelo Admin
   // Master sem senha, até o próprio dono definir a sua via ConviteAtivacao.
-  senhaHash String?   @map("senha_hash")
-  papel     Papel     @default(dono_loja)
-  lojaId    String?   @map("loja_id")
-  loja      Loja?     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  senhaHash           String?   @map("senha_hash")
+  papel               Papel     @default(dono_loja)
+  lojaId              String?   @map("loja_id")
+  loja                Loja?     @relation(fields: [lojaId], references: [id], onDelete: Cascade)
   // Preenchido no momento em que o convite de ativação é usado (senha definida) — início do trial da loja.
-  ativadoEm DateTime? @map("ativado_em")
+  ativadoEm           DateTime? @map("ativado_em")
   // Atualizado a cada login bem-sucedido (login normal ou ativação, que já loga o dono) — única fonte de "uso recente".
-  ultimoLoginEm DateTime? @map("ultimo_login_em")
+  ultimoLoginEm       DateTime? @map("ultimo_login_em")
   // Última versão do aviso de novidades (ex: "2026.08.1") que este usuário já
   // viu e fechou. Comparado com a versão atual no frontend — null significa
   // "nunca viu nenhuma". Não é ligado a login/JWT de propósito, pra não mexer
   // no fluxo de autenticação: é lido/gravado por endpoints próprios.
-  novidadeVersaoVista String? @map("novidade_versao_vista")
-  criadoEm  DateTime  @default(now()) @map("criado_em")
+  novidadeVersaoVista String?   @map("novidade_versao_vista")
+  criadoEm            DateTime  @default(now()) @map("criado_em")
 
-  convitesAtivacao ConviteAtivacao[]
+  convitesAtivacao  ConviteAtivacao[]
+  recuperacoesSenha RecuperacaoSenha[]
 
   @@map("usuarios")
 }
@@ -58,55 +59,72 @@ model ConviteAtivacao {
   @@map("convites_ativacao")
 }
 
+// Recuperação de senha self-service — deliberadamente separada de
+// ConviteAtivacao (nunca reaproveitada como reset de senha): mesmo formato
+// de token hasheado/expira/uso único, mas tabela e fluxo próprios, pra nunca
+// acoplar as duas features. Ver utils/recuperacaoSenha.ts.
+model RecuperacaoSenha {
+  id         String    @id @default(uuid())
+  usuarioId  String    @map("usuario_id")
+  usuario    Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique @map("token_hash")
+  expiraEm   DateTime  @map("expira_em")
+  usadoEm    DateTime? @map("usado_em")
+  revogadoEm DateTime? @map("revogado_em")
+  criadoEm   DateTime  @default(now()) @map("criado_em")
+
+  @@map("recuperacoes_senha")
+}
+
 model Loja {
-  id                        String   @id @default(uuid())
-  nome                      String
-  slug                      String   @unique
-  telefoneWhatsapp          String   @map("telefone_whatsapp")
-  logoUrl                   String?  @map("logo_url")
-  capaUrl                   String?  @map("capa_url")
-  tagline                   String?
-  endereco                  String?
-  chavePix                  String?  @map("chave_pix")
+  id                          String     @id @default(uuid())
+  nome                        String
+  slug                        String     @unique
+  telefoneWhatsapp            String     @map("telefone_whatsapp")
+  logoUrl                     String?    @map("logo_url")
+  capaUrl                     String?    @map("capa_url")
+  tagline                     String?
+  endereco                    String?
+  chavePix                    String?    @map("chave_pix")
   // Campos legados (janela única, igual todo dia da semana) — mantidos pra
   // lojas que ainda não migraram pra agenda semanal (ver horariosFuncionamento).
   // Nunca removidos: calcularAberto() cai pra eles quando horariosFuncionamento é null.
-  horarioAbertura           String?  @map("horario_abertura")
-  horarioFechamento         String?  @map("horario_fechamento")
-  abertoManual              Boolean? @map("aberto_manual")
+  horarioAbertura             String?    @map("horario_abertura")
+  horarioFechamento           String?    @map("horario_fechamento")
+  abertoManual                Boolean?   @map("aberto_manual")
   // Agenda semanal (substitui horarioAbertura/horarioFechamento quando presente):
   // array de 7 entradas { diaSemana: 0-6 (0=domingo, igual Date.getDay()),
   // ativo: boolean, faixas: [{ abertura, fechamento }] } — ver
   // backend/src/utils/horario.ts. null = loja ainda não migrou; nesse caso os
   // campos legados acima continuam valendo, sem nenhuma mudança de comportamento.
-  horariosFuncionamento     Json?    @map("horarios_funcionamento")
-  corPrimaria               String   @default("#16A34A") @map("cor_primaria")
-  corSecundaria             String   @default("#15803D") @map("cor_secundaria")
-  aceitaAgendamento         Boolean  @default(false) @map("aceita_agendamento")
-  antecedenciaMinimaMinutos Int      @default(0) @map("antecedencia_minima_minutos")
-  status                    StatusLoja @default(ativa)
-  suspensaEm                DateTime? @map("suspensa_em")
+  horariosFuncionamento       Json?      @map("horarios_funcionamento")
+  corPrimaria                 String     @default("#16A34A") @map("cor_primaria")
+  corSecundaria               String     @default("#15803D") @map("cor_secundaria")
+  aceitaAgendamento           Boolean    @default(false) @map("aceita_agendamento")
+  antecedenciaMinimaMinutos   Int        @default(0) @map("antecedencia_minima_minutos")
+  status                      StatusLoja @default(ativa)
+  suspensaEm                  DateTime?  @map("suspensa_em")
   // Início/fim do trial de 30 dias — preenchidos quando o dono ativa a conta (não na criação da loja).
   // trialFimEm pode ser prorrogado pelo Admin Master; trialInicioEm nunca muda depois de setado.
-  trialInicioEm             DateTime? @map("trial_inicio_em")
-  trialFimEm                DateTime? @map("trial_fim_em")
+  trialInicioEm               DateTime?  @map("trial_inicio_em")
+  trialFimEm                  DateTime?  @map("trial_fim_em")
   // Origem (loja) para cálculo de distância aproximada até o cliente — só
   // preenchida via botão "Usar minha localização" (Geolocation API do
   // navegador) no painel, nunca por geocoding automático do endereço em texto.
-  latitude                  Float?   @map("latitude")
-  longitude                 Float?   @map("longitude")
+  latitude                    Float?     @map("latitude")
+  longitude                   Float?     @map("longitude")
   // Liga a segunda estratégia de taxa de entrega (por distância/faixas) no
   // lugar da estratégia por bairro. Default false: lojas existentes continuam
   // exatamente no fluxo de bairro, sem qualquer mudança de comportamento.
-  calcularEntregaPorDistancia Boolean @default(false) @map("calcular_entrega_por_distancia")
-  criadoEm                  DateTime @default(now()) @map("criado_em")
+  calcularEntregaPorDistancia Boolean    @default(false) @map("calcular_entrega_por_distancia")
+  criadoEm                    DateTime   @default(now()) @map("criado_em")
 
-  usuarios                Usuario[]
-  categorias              Categoria[]
-  produtos                Produto[]
-  pedidos                 Pedido[]
-  bairrosEntrega          BairroEntrega[]
-  faixasEntregaDistancia  FaixaEntregaDistancia[]
+  usuarios               Usuario[]
+  categorias             Categoria[]
+  produtos               Produto[]
+  pedidos                Pedido[]
+  bairrosEntrega         BairroEntrega[]
+  faixasEntregaDistancia FaixaEntregaDistancia[]
 
   @@map("lojas")
 }
@@ -144,41 +162,41 @@ model Produto {
 }
 
 model Pedido {
-  id                 String    @id @default(uuid())
-  lojaId             String    @map("loja_id")
-  loja               Loja      @relation(fields: [lojaId], references: [id], onDelete: Cascade)
-  numero             Int       @default(0)
-  clienteNome        String    @default("") @map("cliente_nome")
-  clienteTelefone    String    @map("cliente_telefone")
-  itens              Json
-  formaRecebimento   String    @default("retirada") @map("forma_recebimento")
-  bairroEntregaId    String?   @map("bairro_entrega_id")
-  bairroEntregaNome  String?   @map("bairro_entrega_nome")
-  valorEntrega       Decimal   @default(0) @map("valor_entrega") @db.Decimal(10, 2)
-  formaPagamento     String    @default("nao_informado") @map("forma_pagamento")
-  precisaTroco       Boolean?  @map("precisa_troco")
-  trocoPara          Decimal?  @map("troco_para") @db.Decimal(10, 2)
-  tipoCartao         String?   @map("tipo_cartao")
-  entregaCep         String?   @map("entrega_cep")
-  entregaLogradouro  String?   @map("entrega_logradouro")
-  entregaNumero      String?   @map("entrega_numero")
-  entregaComplemento String?   @map("entrega_complemento")
-  entregaBairro      String?   @map("entrega_bairro")
-  entregaCidade      String?   @map("entrega_cidade")
-  entregaEstado      String?   @map("entrega_estado")
-  entregaReferencia  String?   @map("entrega_referencia")
-  status             String    @default("recebido")
-  motivoCancelamento String?   @map("motivo_cancelamento")
-  tipoPedido         String    @default("imediato") @map("tipo_pedido")
-  dataAgendamento    DateTime? @map("data_agendamento")
-  total              Decimal   @db.Decimal(10, 2)
+  id                     String    @id @default(uuid())
+  lojaId                 String    @map("loja_id")
+  loja                   Loja      @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+  numero                 Int       @default(0)
+  clienteNome            String    @default("") @map("cliente_nome")
+  clienteTelefone        String    @map("cliente_telefone")
+  itens                  Json
+  formaRecebimento       String    @default("retirada") @map("forma_recebimento")
+  bairroEntregaId        String?   @map("bairro_entrega_id")
+  bairroEntregaNome      String?   @map("bairro_entrega_nome")
+  valorEntrega           Decimal   @default(0) @map("valor_entrega") @db.Decimal(10, 2)
+  formaPagamento         String    @default("nao_informado") @map("forma_pagamento")
+  precisaTroco           Boolean?  @map("precisa_troco")
+  trocoPara              Decimal?  @map("troco_para") @db.Decimal(10, 2)
+  tipoCartao             String?   @map("tipo_cartao")
+  entregaCep             String?   @map("entrega_cep")
+  entregaLogradouro      String?   @map("entrega_logradouro")
+  entregaNumero          String?   @map("entrega_numero")
+  entregaComplemento     String?   @map("entrega_complemento")
+  entregaBairro          String?   @map("entrega_bairro")
+  entregaCidade          String?   @map("entrega_cidade")
+  entregaEstado          String?   @map("entrega_estado")
+  entregaReferencia      String?   @map("entrega_referencia")
+  status                 String    @default("recebido")
+  motivoCancelamento     String?   @map("motivo_cancelamento")
+  tipoPedido             String    @default("imediato") @map("tipo_pedido")
+  dataAgendamento        DateTime? @map("data_agendamento")
+  total                  Decimal   @db.Decimal(10, 2)
   // Snapshot de como a taxa por distância foi calculada nesse pedido — só
   // preenchidos quando formaRecebimento é entrega e a loja usa esse modo.
   // Faixas futuras da loja nunca recalculam um pedido já criado.
-  clienteLatitude        Float?  @map("cliente_latitude")
-  clienteLongitude       Float?  @map("cliente_longitude")
-  entregaDistanciaMetros Int?    @map("entrega_distancia_metros")
-  criadoEm           DateTime  @default(now()) @map("criado_em")
+  clienteLatitude        Float?    @map("cliente_latitude")
+  clienteLongitude       Float?    @map("cliente_longitude")
+  entregaDistanciaMetros Int?      @map("entrega_distancia_metros")
+  criadoEm               DateTime  @default(now()) @map("criado_em")
 
   @@map("pedidos")
 }
