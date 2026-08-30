@@ -31,6 +31,11 @@ model Usuario {
   ativadoEm DateTime? @map("ativado_em")
   // Atualizado a cada login bem-sucedido (login normal ou ativação, que já loga o dono) — única fonte de "uso recente".
   ultimoLoginEm DateTime? @map("ultimo_login_em")
+  // Última versão do aviso de novidades (ex: "2026.08.1") que este usuário já
+  // viu e fechou. Comparado com a versão atual no frontend — null significa
+  // "nunca viu nenhuma". Não é ligado a login/JWT de propósito, pra não mexer
+  // no fluxo de autenticação: é lido/gravado por endpoints próprios.
+  novidadeVersaoVista String? @map("novidade_versao_vista")
   criadoEm  DateTime  @default(now()) @map("criado_em")
 
   convitesAtivacao ConviteAtivacao[]

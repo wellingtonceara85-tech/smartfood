@@ -1,7 +1,7 @@
 import { BairroEntrega, FaixaEntregaDistancia, Pedido, Prisma, Produto } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
-import { lojaIdDoUsuario, requireAuth } from '../middleware/auth';
+import { lojaIdDoUsuario, requireAuth, requirePapel } from '../middleware/auth';
 import { prisma } from '../prisma';
 import { HEX_REGEX, normalizarCor } from '../utils/cor';
 import { latitudeValida, longitudeValida, validarFaixasEntrega } from '../utils/distancia';
@@ -72,6 +72,18 @@ function lojaIdOuErro(
     return null;
   }
   return lojaId;
+}
+
+function usuarioIdOuErro(
+  req: import('express').Request,
+  res: import('express').Response,
+): string | null {
+  const usuarioId = req.user?.sub;
+  if (!usuarioId) {
+    res.status(401).json({ erro: 'Não autenticado' });
+    return null;
+  }
+  return usuarioId;
 }
 
 // --- Loja ---
@@ -871,4 +883,41 @@ adminRouter.get('/dashboard', async (req, res) => {
     produtoMaisVendido,
     clienteTop,
   });
+});
+
+// --- Aviso de novidades ---
+// Versão é uma string simples (ex: "2026.08.1") definida no frontend, que já
+// tem o conteúdo do aviso. O backend só guarda "qual foi a última versão que
+// este usuário confirmou ter visto" — comparar e decidir se mostra é tudo do
+// cliente, então uma futura novidade não exige nenhuma mudança aqui.
+
+const versaoNovidadeSchema = z.object({
+  versao: z.string().min(1).max(50),
+});
+
+adminRouter.get('/novidade-vista', requirePapel('dono_loja'), async (req, res) => {
+  const usuarioId = usuarioIdOuErro(req, res);
+  if (!usuarioId) return;
+
+  const usuario = await prisma.usuario.findUnique({
+    where: { id: usuarioId },
+    select: { novidadeVersaoVista: true },
+  });
+  res.json({ versao: usuario?.novidadeVersaoVista ?? null });
+});
+
+adminRouter.put('/novidade-vista', requirePapel('dono_loja'), async (req, res) => {
+  const usuarioId = usuarioIdOuErro(req, res);
+  if (!usuarioId) return;
+
+  const parsed = versaoNovidadeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+  }
+
+  await prisma.usuario.update({
+    where: { id: usuarioId },
+    data: { novidadeVersaoVista: parsed.data.versao },
+  });
+  res.status(204).end();
 });

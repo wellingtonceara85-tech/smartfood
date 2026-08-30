@@ -3,6 +3,7 @@ import { Link, Outlet } from 'react-router-dom';
 import { AvisoTrial } from '../components/AvisoTrial';
 import { BotaoSilenciarAlerta } from '../components/painel/BotaoSilenciarAlerta';
 import { BottomNavPainel } from '../components/painel/BottomNavPainel';
+import { ModalNovidades } from '../components/painel/ModalNovidades';
 import { SidebarPainel } from '../components/painel/SidebarPainel';
 import { SininhoNotificacoes } from '../components/painel/SininhoNotificacoes';
 import { ToastNovoPedido } from '../components/painel/ToastNovoPedido';
@@ -88,6 +89,7 @@ export function PainelLayout() {
         <BottomNavPainel />
         <ToastNovoPedido />
         <BotaoSilenciarAlerta />
+        <ModalNovidades />
       </div>
     </NotificacoesProvider>
   );
