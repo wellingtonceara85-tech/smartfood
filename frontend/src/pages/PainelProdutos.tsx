@@ -20,7 +20,8 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { api, enviarFoto } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import { ApiError, api, enviarFoto } from '../lib/api';
 import { agruparProdutosPorCategoria } from '../lib/produto';
 import { Categoria, Produto } from '../types';
 
@@ -44,9 +45,11 @@ const formularioVazio: FormularioProduto = {
 };
 
 export function PainelProdutos() {
+  const { logout } = useAuth();
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState<string | null>(null);
   const [formulario, setFormulario] = useState<FormularioProduto | null>(null);
   const [novaCategoria, setNovaCategoria] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -99,6 +102,7 @@ export function PainelProdutos() {
 
   async function carregar() {
     setCarregando(true);
+    setErroCarregamento(null);
     try {
       const [produtosResp, categoriasResp] = await Promise.all([
         api<Produto[]>('/api/admin/produtos', { autenticado: true }),
@@ -106,6 +110,21 @@ export function PainelProdutos() {
       ]);
       setProdutos(produtosResp);
       setCategorias(categoriasResp);
+    } catch (e) {
+      // 401 aqui significa que `api()` já tentou renovar a sessão pelo
+      // refresh token e mesmo assim falhou — repetir a mesma chamada de novo
+      // ("Tentar novamente") nunca vai funcionar, porque nada sobre a sessão
+      // mudou. Em vez de deixar o lojista preso num retry que nunca resolve,
+      // segue o mesmo caminho que o botão "Sair" já usa pra voltar ao login.
+      if ((e as ApiError)?.status === 401) {
+        logout();
+        return;
+      }
+      // Qualquer outra falha (rede, erro do servidor) pode ser passageira —
+      // nunca deixa passar por "loja sem produtos": produtos/categorias
+      // ficam vazios, mas o EmptyState de "Nenhum produto cadastrado" só
+      // aparece de fato quando não há esse erro.
+      setErroCarregamento('Não foi possível carregar seus produtos agora.');
     } finally {
       setCarregando(false);
     }
@@ -340,6 +359,20 @@ export function PainelProdutos() {
   }
 
   if (carregando) return <Loading />;
+
+  if (erroCarregamento) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-card border border-dashed border-red-200 bg-red-50 px-4 py-8 text-center">
+        <p className="text-sm text-red-700">{erroCarregamento}</p>
+        <p className="text-xs text-red-600">
+          Seus produtos continuam cadastrados — isso é só uma falha ao carregar a tela.
+        </p>
+        <Button variante="secondary" tamanho="sm" onClick={carregar}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
+  }
 
   const grupos = agruparProdutosPorCategoria(categorias, produtos);
 

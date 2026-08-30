@@ -70,16 +70,22 @@ export async function api<T>(caminho: string, opcoes: OpcoesRequisicao = {}): Pr
 
   if (!resposta.ok) {
     const erro = await resposta.json().catch(() => ({ erro: resposta.statusText }));
-    throw Object.assign(new Error(erro.erro ?? 'Erro na requisição'), erro);
+    // status vai junto pro chamador poder distinguir sessão inválida (401,
+    // já sobreviveu a uma tentativa de renovação acima) de qualquer outra
+    // falha — sem isso não dá pra saber se vale a pena tentar de novo.
+    throw Object.assign(new Error(erro.erro ?? 'Erro na requisição'), erro, {
+      status: resposta.status,
+    });
   }
 
   if (resposta.status === 204) return undefined as T;
   return resposta.json() as Promise<T>;
 }
 
-/** Erro lançado por `api()` — além da mensagem, pode carregar campos extras do corpo JSON (ex: `motivo`). */
+/** Erro lançado por `api()` — além da mensagem, pode carregar campos extras do corpo JSON (ex: `motivo`) e o status HTTP da resposta. */
 export interface ApiError extends Error {
   motivo?: string;
+  status?: number;
 }
 
 export async function enviarFoto(arquivo: File): Promise<string> {
