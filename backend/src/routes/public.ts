@@ -45,7 +45,7 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     include: {
       categorias: {
         orderBy: { ordem: 'asc' },
-        include: { produtos: true },
+        include: { produtos: { orderBy: { ordem: 'asc' } } },
       },
       bairrosEntrega: {
         where: { ativo: true },

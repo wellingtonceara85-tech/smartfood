@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from '../components/ui/Alert';
-import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { EmptyState } from '../components/ui/EmptyState';
@@ -8,8 +7,21 @@ import { Input } from '../components/ui/Input';
 import { Loading } from '../components/ui/Loading';
 import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
+import { BarraSelecaoProdutos } from '../components/painel/BarraSelecaoProdutos';
+import { CategoriasArrastaveis } from '../components/painel/CategoriasArrastaveis';
+import { ProdutoLinha } from '../components/painel/ProdutoLinha';
+import {
+  DndContext,
+  DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { api, enviarFoto } from '../lib/api';
-import { rotuloProdutoIncompleto } from '../lib/produto';
+import { agruparProdutosPorCategoria } from '../lib/produto';
 import { Categoria, Produto } from '../types';
 
 interface FormularioProduto {
@@ -38,19 +50,52 @@ export function PainelProdutos() {
   const [formulario, setFormulario] = useState<FormularioProduto | null>(null);
   const [novaCategoria, setNovaCategoria] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
   const [categoriaEditandoId, setCategoriaEditandoId] = useState<string | null>(null);
   const [nomeCategoriaEditando, setNomeCategoriaEditando] = useState('');
-  const formularioRef = useRef<HTMLFormElement>(null);
-  const formularioAberto = formulario !== null;
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [movendo, setMovendo] = useState(false);
+  const [duplicandoId, setDuplicandoId] = useState<string | null>(null);
+  const [produtoDestacadoId, setProdutoDestacadoId] = useState<string | null>(null);
+  const [aberturaId, setAberturaId] = useState(0);
 
-  // Dispara só quando o formulário abre/fecha (não a cada tecla digitada) — senão a
-  // página ficaria rolando de novo a cada alteração de campo.
+  const formularioRef = useRef<HTMLFormElement>(null);
+  const nomeInputRef = useRef<HTMLInputElement>(null);
+
+  // Rola até o formulário e foca o campo Nome toda vez que ele deve abrir —
+  // depende de `aberturaId` (não de "formulário aberto?") de propósito: sem
+  // isso, clicar em "Editar" num produto B enquanto o produto A já estava em
+  // edição não rolava a tela de novo, porque o formulário já estava aberto e
+  // o efeito não disparava. rAF espera o layout assentar antes de rolar; o
+  // foco vem um instante depois, com preventScroll, pra não competir com a
+  // animação do teclado virtual no celular.
   useEffect(() => {
-    if (formularioAberto) {
-      formularioRef.current?.scrollIntoView({ block: 'start' });
-    }
-  }, [formularioAberto]);
+    if (!formulario) return;
+    const frame = requestAnimationFrame(() => {
+      formularioRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    const timeout = setTimeout(() => {
+      nomeInputRef.current?.focus({ preventScroll: true });
+    }, 350);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberturaId]);
+
+  useEffect(() => {
+    if (!mensagemSucesso) return;
+    const timeout = setTimeout(() => setMensagemSucesso(null), 3000);
+    return () => clearTimeout(timeout);
+  }, [mensagemSucesso]);
+
+  useEffect(() => {
+    if (!produtoDestacadoId) return;
+    const timeout = setTimeout(() => setProdutoDestacadoId(null), 2500);
+    return () => clearTimeout(timeout);
+  }, [produtoDestacadoId]);
 
   async function carregar() {
     setCarregando(true);
@@ -70,6 +115,24 @@ export function PainelProdutos() {
     carregar();
   }, []);
 
+  function abrirFormulario(dados: FormularioProduto) {
+    setFormulario(dados);
+    setErro(null);
+    setAberturaId((v) => v + 1);
+  }
+
+  function editar(produto: Produto) {
+    abrirFormulario({
+      id: produto.id,
+      categoriaId: produto.categoriaId,
+      nome: produto.nome,
+      descricao: produto.descricao ?? '',
+      preco: String(produto.preco),
+      fotoUrl: produto.fotoUrl ?? '',
+      opcoes: produto.opcoes?.join(', ') ?? '',
+    });
+  }
+
   async function alternarDisponibilidade(produto: Produto) {
     const atualizado = await api<Produto>(`/api/admin/produtos/${produto.id}/disponibilidade`, {
       method: 'PATCH',
@@ -83,6 +146,100 @@ export function PainelProdutos() {
     if (!confirm('Excluir este produto?')) return;
     await api(`/api/admin/produtos/${id}`, { method: 'DELETE', autenticado: true });
     setProdutos((atuais) => atuais.filter((p) => p.id !== id));
+    setSelecionados((atuais) => {
+      const copia = new Set(atuais);
+      copia.delete(id);
+      return copia;
+    });
+  }
+
+  async function duplicarProduto(produto: Produto) {
+    setDuplicandoId(produto.id);
+    setErro(null);
+    try {
+      const copia = await api<Produto>(`/api/admin/produtos/${produto.id}/duplicar`, {
+        method: 'POST',
+        autenticado: true,
+      });
+      setProdutos((atuais) => [...atuais, copia]);
+      setMensagemSucesso(`"${produto.nome}" duplicado.`);
+      setProdutoDestacadoId(copia.id);
+      editar(copia);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao duplicar produto');
+    } finally {
+      setDuplicandoId(null);
+    }
+  }
+
+  function alternarSelecao(id: string) {
+    setSelecionados((atuais) => {
+      const copia = new Set(atuais);
+      if (copia.has(id)) copia.delete(id);
+      else copia.add(id);
+      return copia;
+    });
+  }
+
+  async function moverSelecionados(categoriaId: string) {
+    setMovendo(true);
+    setErro(null);
+    try {
+      const atualizados = await api<Produto[]>('/api/admin/produtos/mover', {
+        method: 'POST',
+        autenticado: true,
+        body: { produtoIds: [...selecionados], categoriaId },
+      });
+      const porId = new Map(atualizados.map((p) => [p.id, p]));
+      setProdutos((atuais) => atuais.map((p) => porId.get(p.id) ?? p));
+      setMensagemSucesso(
+        `${atualizados.length} ${atualizados.length === 1 ? 'produto movido' : 'produtos movidos'}.`,
+      );
+      setSelecionados(new Set());
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro ao mover produtos');
+    } finally {
+      setMovendo(false);
+    }
+  }
+
+  async function reordenarCategorias(novaOrdem: Categoria[]) {
+    const anterior = categorias;
+    setCategorias(novaOrdem);
+    try {
+      const atualizadas = await api<Categoria[]>('/api/admin/categorias/reordenar', {
+        method: 'PUT',
+        autenticado: true,
+        body: { ids: novaOrdem.map((c) => c.id) },
+      });
+      setCategorias(atualizadas);
+    } catch (e) {
+      setCategorias(anterior);
+      setErro(e instanceof Error ? e.message : 'Erro ao reordenar categorias');
+    }
+  }
+
+  async function reordenarProdutosDaCategoria(categoriaId: string, novaOrdemIds: string[]) {
+    const anterior = produtos;
+    setProdutos((atuais) =>
+      atuais.map((p) => {
+        if (p.categoriaId !== categoriaId) return p;
+        const indice = novaOrdemIds.indexOf(p.id);
+        return indice === -1 ? p : { ...p, ordem: indice };
+      }),
+    );
+    try {
+      const atualizados = await api<Produto[]>('/api/admin/produtos/reordenar', {
+        method: 'PUT',
+        autenticado: true,
+        body: { categoriaId, ids: novaOrdemIds },
+      });
+      const porId = new Map(atualizados.map((p) => [p.id, p]));
+      setProdutos((atuais) => atuais.map((p) => porId.get(p.id) ?? p));
+    } catch (e) {
+      setProdutos(anterior);
+      setErro(e instanceof Error ? e.message : 'Erro ao reordenar produtos');
+    }
   }
 
   async function criarCategoria() {
@@ -92,7 +249,7 @@ export function PainelProdutos() {
       autenticado: true,
       body: { nome: novaCategoria.trim(), ordem: categorias.length },
     });
-    setCategorias((atuais) => [...atuais, categoria]);
+    setCategorias((atuais) => [...atuais, { ...categoria, produtos: [] }]);
     setNovaCategoria('');
   }
 
@@ -103,6 +260,9 @@ export function PainelProdutos() {
 
   async function salvarEdicaoCategoria(id: string) {
     if (!nomeCategoriaEditando.trim()) return;
+    // Renomear só troca `nome` — o vínculo dos produtos é por categoriaId
+    // (chave estrangeira), nunca pelo texto, então nenhum produto precisa
+    // ser tocado aqui.
     const categoria = await api<Categoria>(`/api/admin/categorias/${id}`, {
       method: 'PUT',
       autenticado: true,
@@ -112,6 +272,7 @@ export function PainelProdutos() {
       atuais.map((c) => (c.id === id ? { ...c, nome: categoria.nome } : c)),
     );
     setCategoriaEditandoId(null);
+    setMensagemSucesso('Categoria renomeada.');
   }
 
   async function excluirCategoria(id: string) {
@@ -143,13 +304,17 @@ export function PainelProdutos() {
           body: corpo,
         });
         setProdutos((atuais) => atuais.map((p) => (p.id === atualizado.id ? atualizado : p)));
+        setMensagemSucesso('Produto atualizado.');
+        setProdutoDestacadoId(atualizado.id);
       } else {
         const criado = await api<Produto>('/api/admin/produtos', {
           method: 'POST',
           autenticado: true,
           body: corpo,
         });
-        setProdutos((atuais) => [criado, ...atuais]);
+        setProdutos((atuais) => [...atuais, criado]);
+        setMensagemSucesso('Produto criado.');
+        setProdutoDestacadoId(criado.id);
       }
       setFormulario(null);
     } catch (e) {
@@ -174,77 +339,35 @@ export function PainelProdutos() {
     }
   }
 
-  function editar(produto: Produto) {
-    setFormulario({
-      id: produto.id,
-      categoriaId: produto.categoriaId ?? '',
-      nome: produto.nome,
-      descricao: produto.descricao ?? '',
-      preco: String(produto.preco),
-      fotoUrl: produto.fotoUrl ?? '',
-      opcoes: produto.opcoes?.join(', ') ?? '',
-    });
-  }
-
   if (carregando) return <Loading />;
 
+  const grupos = agruparProdutosPorCategoria(categorias, produtos);
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 pb-24">
+      {mensagemSucesso && <Alert tipo="sucesso">{mensagemSucesso}</Alert>}
+      {erro && !formulario && <Alert tipo="erro">{erro}</Alert>}
+
       <section>
         <h2 className="mb-2 text-lg font-semibold text-gray-800">Categorias</h2>
-        <div className="flex flex-wrap gap-2">
-          {categorias.map((categoria) =>
-            categoriaEditandoId === categoria.id ? (
-              <span
-                key={categoria.id}
-                className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1"
-              >
-                <input
-                  autoFocus
-                  value={nomeCategoriaEditando}
-                  onChange={(e) => setNomeCategoriaEditando(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && salvarEdicaoCategoria(categoria.id)}
-                  className="w-28 rounded border border-gray-300 px-1.5 py-0.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <button
-                  onClick={() => salvarEdicaoCategoria(categoria.id)}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Salvar
-                </button>
-                <button
-                  onClick={() => setCategoriaEditandoId(null)}
-                  className="text-xs font-medium text-gray-500 hover:underline"
-                >
-                  Cancelar
-                </button>
-              </span>
-            ) : (
-              <span
-                key={categoria.id}
-                className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700 transition-colors hover:bg-gray-200"
-              >
-                {categoria.nome}
-                <button
-                  onClick={() => iniciarEdicaoCategoria(categoria)}
-                  className="text-gray-400 hover:text-secondary"
-                  title="Editar categoria"
-                  aria-label="Editar categoria"
-                >
-                  ✎
-                </button>
-                <button
-                  onClick={() => excluirCategoria(categoria.id)}
-                  className="text-gray-400 hover:text-red-600"
-                  title="Excluir categoria"
-                  aria-label="Excluir categoria"
-                >
-                  ×
-                </button>
-              </span>
-            ),
-          )}
-        </div>
+        <p className="-mt-1 mb-2 text-xs text-gray-500">
+          Arraste pela alça (⠿) pra reordenar — a ordem aqui é a mesma que aparece no cardápio.
+        </p>
+
+        {categorias.length > 0 && (
+          <CategoriasArrastaveis
+            categorias={categorias}
+            aoReordenar={reordenarCategorias}
+            categoriaEditandoId={categoriaEditandoId}
+            nomeCategoriaEditando={nomeCategoriaEditando}
+            aoIniciarEdicao={iniciarEdicaoCategoria}
+            aoMudarNomeEdicao={setNomeCategoriaEditando}
+            aoSalvarEdicao={salvarEdicaoCategoria}
+            aoCancelarEdicao={() => setCategoriaEditandoId(null)}
+            aoExcluir={excluirCategoria}
+          />
+        )}
+
         <div className="mt-2 flex gap-2">
           <Input
             value={novaCategoria}
@@ -258,10 +381,10 @@ export function PainelProdutos() {
         </div>
       </section>
 
-      <section>
-        <div className="mb-2 flex items-center justify-between">
+      <section className="flex flex-col gap-5">
+        <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800">Produtos</h2>
-          <Button tamanho="sm" onClick={() => setFormulario(formularioVazio)}>
+          <Button tamanho="sm" onClick={() => abrirFormulario(formularioVazio)}>
             Novo produto
           </Button>
         </div>
@@ -272,64 +395,39 @@ export function PainelProdutos() {
             titulo="Nenhum produto cadastrado"
             descricao="Cadastre o primeiro produto do seu cardápio pra começar a vender."
             acao={
-              <Button tamanho="sm" onClick={() => setFormulario(formularioVazio)}>
+              <Button tamanho="sm" onClick={() => abrirFormulario(formularioVazio)}>
                 Novo produto
               </Button>
             }
           />
         ) : (
-          <ul className="flex flex-col gap-2">
-            {produtos.map((produto) => (
-              <li key={produto.id}>
-                <Card className="flex flex-wrap items-center justify-between gap-3 p-3 transition-shadow hover:shadow-card-hover">
-                  <div
-                    className={`flex items-center gap-3 ${produto.disponivel ? '' : 'opacity-50'}`}
-                  >
-                    {produto.fotoUrl ? (
-                      <img
-                        src={produto.fotoUrl}
-                        alt={produto.nome}
-                        className="h-12 w-12 rounded-lg object-cover"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 rounded-lg bg-gray-100" />
-                    )}
-                    <div>
-                      <p className="font-medium text-gray-800">{produto.nome}</p>
-                      <p className="text-sm text-gray-500">R$ {produto.preco.toFixed(2)}</p>
-                    </div>
-                    <Badge cor={produto.disponivel ? 'primary' : 'gray'}>
-                      {produto.disponivel ? 'Disponível' : 'Indisponível'}
-                    </Badge>
-                    {rotuloProdutoIncompleto(produto) && (
-                      <Badge cor="yellow">{rotuloProdutoIncompleto(produto)}</Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-sm text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={produto.disponivel}
-                        onChange={() => alternarDisponibilidade(produto)}
-                        className="h-4 w-4 accent-primary"
-                      />
-                      Disponível
-                    </label>
-                    <Button variante="ghost" tamanho="sm" onClick={() => editar(produto)}>
-                      Editar
-                    </Button>
-                    <Button
-                      variante="ghost-danger"
-                      tamanho="sm"
-                      onClick={() => excluirProduto(produto.id)}
-                    >
-                      Excluir
-                    </Button>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
+          grupos.map(({ categoria, produtos: produtosDaCategoria }) =>
+            produtosDaCategoria.length > 0 ? (
+              <GrupoProdutosCategoria
+                key={categoria.id}
+                categoria={categoria}
+                produtos={produtosDaCategoria}
+                selecionados={selecionados}
+                produtoDestacadoId={produtoDestacadoId}
+                duplicandoId={duplicandoId}
+                aoAlternarSelecao={alternarSelecao}
+                aoAlternarDisponibilidade={alternarDisponibilidade}
+                aoEditar={editar}
+                aoDuplicar={duplicarProduto}
+                aoExcluir={excluirProduto}
+                aoReordenar={(ids) => reordenarProdutosDaCategoria(categoria.id, ids)}
+              />
+            ) : (
+              <div key={categoria.id}>
+                <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  {categoria.nome}
+                </p>
+                <p className="rounded-lg border border-dashed border-gray-200 px-3 py-3 text-xs text-gray-400">
+                  Nenhum produto nesta categoria ainda.
+                </p>
+              </div>
+            ),
+          )
         )}
       </section>
 
@@ -354,6 +452,7 @@ export function PainelProdutos() {
             </Select>
 
             <Input
+              ref={nomeInputRef}
               required
               placeholder="Nome"
               value={formulario.nome}
@@ -408,13 +507,103 @@ export function PainelProdutos() {
               <Button type="submit" disabled={enviandoFoto}>
                 Salvar
               </Button>
-              <Button type="button" variante="secondary" onClick={() => setFormulario(null)}>
+              <Button
+                type="button"
+                variante="secondary"
+                onClick={() => {
+                  setFormulario(null);
+                  setErro(null);
+                }}
+              >
                 Cancelar
               </Button>
             </div>
           </Card>
         </form>
       )}
+
+      <BarraSelecaoProdutos
+        quantidade={selecionados.size}
+        categorias={categorias}
+        movendo={movendo}
+        aoMover={moverSelecionados}
+        aoCancelar={() => setSelecionados(new Set())}
+      />
+    </div>
+  );
+}
+
+interface GrupoProps {
+  categoria: Categoria;
+  produtos: Produto[];
+  selecionados: Set<string>;
+  produtoDestacadoId: string | null;
+  duplicandoId: string | null;
+  aoAlternarSelecao: (id: string) => void;
+  aoAlternarDisponibilidade: (produto: Produto) => void;
+  aoEditar: (produto: Produto) => void;
+  aoDuplicar: (produto: Produto) => void;
+  aoExcluir: (id: string) => void;
+  aoReordenar: (novaOrdemIds: string[]) => void;
+}
+
+/** Uma seção por categoria — o arrasto de produtos fica sempre restrito à própria categoria (mover pra outra é a ação "Mover em massa", não drag). */
+function GrupoProdutosCategoria({
+  categoria,
+  produtos,
+  selecionados,
+  produtoDestacadoId,
+  duplicandoId,
+  aoAlternarSelecao,
+  aoAlternarDisponibilidade,
+  aoEditar,
+  aoDuplicar,
+  aoExcluir,
+  aoReordenar,
+}: GrupoProps) {
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+
+  function aoFinalizarArrasto(evento: DragEndEvent) {
+    const { active, over } = evento;
+    if (!over || active.id === over.id) return;
+    const indiceAntigo = produtos.findIndex((p) => p.id === active.id);
+    const indiceNovo = produtos.findIndex((p) => p.id === over.id);
+    if (indiceAntigo === -1 || indiceNovo === -1) return;
+    aoReordenar(arrayMove(produtos, indiceAntigo, indiceNovo).map((p) => p.id));
+  }
+
+  return (
+    <div>
+      <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        {categoria.nome}
+      </p>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={aoFinalizarArrasto}
+      >
+        <SortableContext items={produtos.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+          <div className="flex flex-col gap-2">
+            {produtos.map((produto) => (
+              <ProdutoLinha
+                key={produto.id}
+                produto={produto}
+                selecionado={selecionados.has(produto.id)}
+                destacado={produtoDestacadoId === produto.id}
+                duplicando={duplicandoId === produto.id}
+                aoAlternarSelecao={() => aoAlternarSelecao(produto.id)}
+                aoAlternarDisponibilidade={() => aoAlternarDisponibilidade(produto)}
+                aoEditar={() => aoEditar(produto)}
+                aoDuplicar={() => aoDuplicar(produto)}
+                aoExcluir={() => aoExcluir(produto.id)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }

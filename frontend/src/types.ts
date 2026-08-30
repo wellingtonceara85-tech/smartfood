@@ -6,7 +6,8 @@ export interface Produto {
   fotoUrl: string | null;
   disponivel: boolean;
   opcoes: string[] | null;
-  categoriaId?: string;
+  categoriaId: string;
+  ordem: number;
 }
 
 export interface Categoria {

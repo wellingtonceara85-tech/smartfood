@@ -10,6 +10,7 @@ import {
   HorariosFuncionamento,
   validarHorariosFuncionamento,
 } from '../utils/horario';
+import { calcularNovaOrdem, proximaOrdem } from '../utils/ordenacao';
 import { montarPendenciasLoja } from '../utils/pendenciasLoja';
 import { cancelamentoPermitido, STATUS_PEDIDO, transicaoValida } from '../utils/statusPedido';
 import { calcularTrial } from '../utils/trial';
@@ -245,6 +246,41 @@ adminRouter.post('/categorias', async (req, res) => {
   res.status(201).json(categoria);
 });
 
+const reordenarCategoriasSchema = z.object({
+  ids: z.array(z.string().uuid()),
+});
+
+// Registrado ANTES de "/categorias/:id" de propósito — o Express casa rotas
+// na ordem de registro, e ":id" bateria com o literal "reordenar" primeiro
+// se viesse depois.
+adminRouter.put('/categorias/reordenar', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = reordenarCategoriasSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const categorias = await prisma.categoria.findMany({ where: { lojaId }, select: { id: true } });
+  const resultado = calcularNovaOrdem(
+    categorias.map((c) => c.id),
+    parsed.data.ids,
+  );
+  if (!resultado.valida) return res.status(400).json({ erro: resultado.erro });
+
+  await prisma.$transaction(
+    [...resultado.ordemPorId!.entries()].map(([id, ordem]) =>
+      prisma.categoria.update({ where: { id }, data: { ordem } }),
+    ),
+  );
+
+  const atualizadas = await prisma.categoria.findMany({
+    where: { lojaId },
+    orderBy: { ordem: 'asc' },
+  });
+  res.json(atualizadas);
+});
+
 adminRouter.put('/categorias/:id', async (req, res) => {
   const lojaId = lojaIdOuErro(req, res);
   if (!lojaId) return;
@@ -282,7 +318,7 @@ adminRouter.get('/produtos', async (req, res) => {
 
   const produtos = await prisma.produto.findMany({
     where: { lojaId },
-    orderBy: { criadoEm: 'desc' },
+    orderBy: [{ categoriaId: 'asc' }, { ordem: 'asc' }],
   });
   res.json(produtos.map(serializarProduto));
 });
@@ -310,6 +346,11 @@ adminRouter.post('/produtos', async (req, res) => {
   });
   if (!categoria) return res.status(400).json({ erro: 'Categoria inválida para esta loja' });
 
+  const produtosDaCategoria = await prisma.produto.findMany({
+    where: { categoriaId: parsed.data.categoriaId },
+    select: { ordem: true },
+  });
+
   const produto = await prisma.produto.create({
     data: {
       lojaId,
@@ -320,9 +361,132 @@ adminRouter.post('/produtos', async (req, res) => {
       fotoUrl: parsed.data.fotoUrl ?? null,
       disponivel: parsed.data.disponivel ?? true,
       opcoes: parsed.data.opcoes ?? Prisma.JsonNull,
+      ordem: proximaOrdem(produtosDaCategoria),
     },
   });
   res.status(201).json(serializarProduto(produto));
+});
+
+const reordenarProdutosSchema = z.object({
+  categoriaId: z.string().uuid(),
+  ids: z.array(z.string().uuid()),
+});
+
+// Registradas ANTES de "/produtos/:id" pelo mesmo motivo das categorias —
+// evita que ":id" capture o literal "reordenar"/"mover" primeiro.
+adminRouter.put('/produtos/reordenar', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = reordenarProdutosSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const categoria = await prisma.categoria.findFirst({
+    where: { id: parsed.data.categoriaId, lojaId },
+  });
+  if (!categoria) return res.status(400).json({ erro: 'Categoria inválida para esta loja' });
+
+  const produtos = await prisma.produto.findMany({
+    where: { categoriaId: parsed.data.categoriaId, lojaId },
+    select: { id: true },
+  });
+  const resultado = calcularNovaOrdem(
+    produtos.map((p) => p.id),
+    parsed.data.ids,
+  );
+  if (!resultado.valida) return res.status(400).json({ erro: resultado.erro });
+
+  await prisma.$transaction(
+    [...resultado.ordemPorId!.entries()].map(([id, ordem]) =>
+      prisma.produto.update({ where: { id }, data: { ordem } }),
+    ),
+  );
+
+  const atualizados = await prisma.produto.findMany({
+    where: { categoriaId: parsed.data.categoriaId, lojaId },
+    orderBy: { ordem: 'asc' },
+  });
+  res.json(atualizados.map(serializarProduto));
+});
+
+const moverProdutosSchema = z.object({
+  produtoIds: z.array(z.string().uuid()).min(1),
+  categoriaId: z.string().uuid(),
+});
+
+/** Mover em massa pro fim da categoria de destino — nunca mistura com a ordem que os produtos já tinham na categoria de origem. */
+adminRouter.post('/produtos/mover', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = moverProdutosSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const categoriaDestino = await prisma.categoria.findFirst({
+    where: { id: parsed.data.categoriaId, lojaId },
+  });
+  if (!categoriaDestino) return res.status(400).json({ erro: 'Categoria inválida para esta loja' });
+
+  const produtosSelecionados = await prisma.produto.findMany({
+    where: { id: { in: parsed.data.produtoIds }, lojaId },
+  });
+  if (produtosSelecionados.length !== parsed.data.produtoIds.length) {
+    return res
+      .status(400)
+      .json({ erro: 'Um ou mais produtos selecionados não pertencem a esta loja' });
+  }
+
+  const produtosNoDestino = await prisma.produto.findMany({
+    where: { categoriaId: parsed.data.categoriaId },
+    select: { ordem: true },
+  });
+  const ordemInicial = proximaOrdem(produtosNoDestino);
+
+  await prisma.$transaction(
+    produtosSelecionados.map((produto, indice) =>
+      prisma.produto.update({
+        where: { id: produto.id },
+        data: { categoriaId: parsed.data.categoriaId, ordem: ordemInicial + indice },
+      }),
+    ),
+  );
+
+  const atualizados = await prisma.produto.findMany({
+    where: { id: { in: parsed.data.produtoIds } },
+  });
+  res.json(atualizados.map(serializarProduto));
+});
+
+adminRouter.post('/produtos/:id/duplicar', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const original = await prisma.produto.findFirst({ where: { id: req.params.id, lojaId } });
+  if (!original) return res.status(404).json({ erro: 'Produto não encontrado' });
+
+  const produtosDaCategoria = await prisma.produto.findMany({
+    where: { categoriaId: original.categoriaId },
+    select: { ordem: true },
+  });
+
+  // Copia a URL da foto direto (mesmo arquivo no Storage) — sem re-upload,
+  // o produto novo só passa a apontar pra referência que já existe.
+  const copia = await prisma.produto.create({
+    data: {
+      lojaId,
+      categoriaId: original.categoriaId,
+      nome: `${original.nome} (cópia)`,
+      descricao: original.descricao,
+      preco: original.preco,
+      fotoUrl: original.fotoUrl,
+      disponivel: original.disponivel,
+      opcoes: original.opcoes ?? Prisma.JsonNull,
+      ordem: proximaOrdem(produtosDaCategoria),
+    },
+  });
+  res.status(201).json(serializarProduto(copia));
 });
 
 adminRouter.put('/produtos/:id', async (req, res) => {

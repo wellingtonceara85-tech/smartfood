@@ -24,3 +24,27 @@ export function rotuloProdutoIncompleto(produto: {
   if (semDescricao) return 'Sem descrição';
   return null;
 }
+
+export interface GrupoProdutosPorCategoria<C, P> {
+  categoria: C;
+  produtos: P[];
+}
+
+/**
+ * Agrupa os produtos por categoria, na mesma ordem em que as categorias já
+ * vêm (o lojista controla essa ordem arrastando) — e dentro de cada grupo,
+ * ordena pelo campo `ordem` do produto. Produto sem categoria correspondente
+ * na lista (categoria excluída, por exemplo) simplesmente não aparece —
+ * nunca quebra a tela.
+ */
+export function agruparProdutosPorCategoria<
+  C extends { id: string },
+  P extends { categoriaId: string; ordem: number },
+>(categorias: C[], produtos: P[]): GrupoProdutosPorCategoria<C, P>[] {
+  return categorias.map((categoria) => ({
+    categoria,
+    produtos: produtos
+      .filter((produto) => produto.categoriaId === categoria.id)
+      .sort((a, b) => a.ordem - b.ordem),
+  }));
+}
