@@ -71,6 +71,14 @@ export function PainelPedidos() {
     }
   }
 
+  async function confirmarPagamentoPix(pedido: PedidoAdmin) {
+    const atualizado = await api<PedidoAdmin>(
+      `/api/admin/pedidos/${pedido.id}/pix/confirmar-pagamento`,
+      { method: 'POST', autenticado: true },
+    );
+    atualizarPedidoLocal(atualizado);
+  }
+
   async function confirmarCancelamento(motivo: string) {
     if (!pedidoCancelando) return;
     const atualizado = await api<PedidoAdmin>(
@@ -150,6 +158,7 @@ export function PainelPedidos() {
           novosIds={novosIds}
           aoMudarStatus={mudarStatus}
           aoAbrirCancelamento={setPedidoCancelando}
+          aoConfirmarPagamentoPix={confirmarPagamentoPix}
         />
       )}
 
@@ -176,6 +185,7 @@ export function PainelPedidos() {
                         destacado={novosIds.has(pedido.id)}
                         aoMudarStatus={mudarStatus}
                         aoCancelar={setPedidoCancelando}
+                        aoConfirmarPagamentoPix={confirmarPagamentoPix}
                       />
                     ))}
                   </div>

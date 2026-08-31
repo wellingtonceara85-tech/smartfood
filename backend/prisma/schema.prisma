@@ -133,6 +133,13 @@ model Loja {
   tagline                     String?
   endereco                    String?
   chavePix                    String?    @map("chave_pix")
+  // Campos abaixo só existem pra gerar o payload Pix (QR/copia-e-cola) —
+  // opcionais e independentes de chavePix, que continua funcionando sozinha
+  // (texto simples no WhatsApp) pra loja que não preencher os 3. Ver
+  // utils/pixPayload.ts: só gera payload completo quando os 4 estão presentes.
+  pixTipoChave                String?    @map("pix_tipo_chave")
+  pixTitular                  String?    @map("pix_titular")
+  pixCidade                   String?    @map("pix_cidade")
   // Campos legados (janela única, igual todo dia da semana) — mantidos pra
   // lojas que ainda não migraram pra agenda semanal (ver horariosFuncionamento).
   // Nunca removidos: calcularAberto() cai pra eles quando horariosFuncionamento é null.
@@ -359,6 +366,17 @@ model Pedido {
   clienteLatitude        Float?    @map("cliente_latitude")
   clienteLongitude       Float?    @map("cliente_longitude")
   entregaDistanciaMetros Int?      @map("entrega_distancia_metros")
+  // Status de PAGAMENTO do Pix manual — inteiramente separado do `status`
+  // operacional (kanban) acima, que nunca é tocado por isso. Só populado
+  // quando formaPagamento = 'pix'; nulo em qualquer outro caso (inclusive
+  // pedidos antigos, de antes desta coluna existir). Valores:
+  // 'aguardando_pagamento' | 'cliente_informou_pagamento' | 'pagamento_confirmado'.
+  // Cliente só pode levar até 'cliente_informou_pagamento' (ver
+  // POST /public/.../pix/informar-pagamento) — só o lojista autenticado grava
+  // 'pagamento_confirmado' (ver POST /admin/pedidos/:id/pix/confirmar-pagamento).
+  statusPagamento        String?   @map("status_pagamento")
+  pagamentoInformadoEm   DateTime? @map("pagamento_informado_em")
+  pagamentoConfirmadoEm  DateTime? @map("pagamento_confirmado_em")
   criadoEm               DateTime  @default(now()) @map("criado_em")
 
   @@map("pedidos")

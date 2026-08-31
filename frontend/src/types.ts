@@ -89,6 +89,9 @@ export interface Loja {
   tagline: string | null;
   endereco: string | null;
   chavePix: string | null;
+  pixTipoChave: TipoChavePix | null;
+  pixTitular: string | null;
+  pixCidade: string | null;
   telefoneWhatsapp: string;
   horarioAbertura: string | null;
   horarioFechamento: string | null;
@@ -177,6 +180,10 @@ export type StatusPedido =
   'recebido' | 'confirmado' | 'em_preparo' | 'pronto' | 'entregue' | 'finalizado' | 'cancelado';
 export type FormaPagamento = 'dinheiro' | 'cartao' | 'pix';
 export type TipoPedido = 'imediato' | 'agendado';
+export type TipoChavePix = 'cpf' | 'cnpj' | 'telefone' | 'email' | 'aleatoria';
+/** Status do Pix manual — nunca o status operacional (kanban) do pedido. null = não se aplica (não é Pix, ou pedido de antes desta coluna existir). */
+export type StatusPagamentoPix =
+  'aguardando_pagamento' | 'cliente_informou_pagamento' | 'pagamento_confirmado';
 
 /** Formato em que os itens ficam gravados dentro de um pedido já criado (Pedido.itens no backend) — diferente de ItemCarrinho. */
 export interface ItemPedidoRegistrado {
@@ -228,6 +235,9 @@ export interface PedidoAdmin extends EnderecoEntregaPedido {
   precisaTroco: boolean | null;
   trocoPara: number | null;
   tipoCartao: 'debito' | 'credito' | null;
+  statusPagamento: StatusPagamentoPix | null;
+  pagamentoInformadoEm: string | null;
+  pagamentoConfirmadoEm: string | null;
   status: StatusPedido;
   motivoCancelamento: string | null;
   tipoPedido: TipoPedido;

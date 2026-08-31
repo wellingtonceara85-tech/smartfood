@@ -5,6 +5,7 @@ import { BarraResumoCompacta } from '../components/BarraResumoCompacta';
 import { CardEntregaTopo } from '../components/CardEntregaTopo';
 import { CardProduto } from '../components/CardProduto';
 import { ModalProduto } from '../components/ModalProduto';
+import { PixPagamentoModal } from '../components/PixPagamentoModal';
 import { ResumoPedido } from '../components/ResumoPedido';
 import { agendamentoPareceValido } from '../lib/agendamento';
 import { api } from '../lib/api';
@@ -74,6 +75,13 @@ export function LojaPublica() {
   const [pedidoAnterior, setPedidoAnterior] = useState<PedidoAnterior | null>(null);
   const [finalizando, setFinalizando] = useState(false);
   const [erroPedido, setErroPedido] = useState<string | null>(null);
+  const [pixModal, setPixModal] = useState<{
+    pedidoId: string;
+    numero: number;
+    total: number;
+    pixPayload: string | null;
+    linkWhatsapp: string;
+  } | null>(null);
   const [formaRecebimento, setFormaRecebimento] = useState<'entrega' | 'retirada'>('retirada');
   const [bairroSelecionadoId, setBairroSelecionadoId] = useState<string | null>(null);
   const [clienteLocalizacao, setClienteLocalizacao] = useState<{
@@ -448,13 +456,23 @@ export function LojaPublica() {
     setFinalizando(true);
     setErroPedido(null);
 
+    const ehPix = formaPagamento === 'pix';
     // Abre a aba já aqui, ainda dentro do clique do usuário — se abrir só depois do
     // await da API, o navegador (principalmente no celular) não reconhece mais como
     // resposta direta ao clique e bloqueia a aba silenciosamente como pop-up.
-    const abaWhatsapp = window.open('', '_blank');
+    // Pix é exceção: mostra o modal de pagamento antes do WhatsApp, então a aba só
+    // abre no clique de um dos botões do modal (ver PixPagamentoModal.tsx) — abrir
+    // uma aba em branco aqui deixaria ela solta enquanto o cliente decide.
+    const abaWhatsapp = ehPix ? null : window.open('', '_blank');
 
     try {
-      const resposta = await api<{ linkWhatsapp: string }>(`/api/public/lojas/${slug}/pedidos`, {
+      const resposta = await api<{
+        // total vem como string — é um Decimal do Prisma, não serializado
+        // como number nesta rota (diferente de admin.ts, que usa Number()).
+        pedido: { id: string; numero: number; total: string };
+        linkWhatsapp: string;
+        pixPayload: string | null;
+      }>(`/api/public/lojas/${slug}/pedidos`, {
         method: 'POST',
         body: {
           clienteNome: nome.trim(),
@@ -485,7 +503,15 @@ export function LojaPublica() {
             loja?.aceitaAgendamento && tipoPedido === 'agendado' ? horaAgendamento : null,
         },
       });
-      if (abaWhatsapp) {
+      if (ehPix) {
+        setPixModal({
+          pedidoId: resposta.pedido.id,
+          numero: resposta.pedido.numero,
+          total: Number(resposta.pedido.total),
+          pixPayload: resposta.pixPayload,
+          linkWhatsapp: resposta.linkWhatsapp,
+        });
+      } else if (abaWhatsapp) {
         abaWhatsapp.location.href = resposta.linkWhatsapp;
       } else {
         // Aba bloqueada mesmo assim (ex: usuário desativou pop-ups) — navega a própria página.
@@ -740,6 +766,19 @@ export function LojaPublica() {
             observacao: carrinho[itemEditando.chave]?.observacao ?? null,
           }}
           modoEdicao
+        />
+      )}
+
+      {pixModal && slug && (
+        <PixPagamentoModal
+          slug={slug}
+          pedidoId={pixModal.pedidoId}
+          numeroPedido={pixModal.numero}
+          total={pixModal.total}
+          chavePix={loja.chavePix}
+          pixPayload={pixModal.pixPayload}
+          linkWhatsappOriginal={pixModal.linkWhatsapp}
+          aoFechar={() => setPixModal(null)}
         />
       )}
 

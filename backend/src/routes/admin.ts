@@ -12,6 +12,7 @@ import {
 } from '../utils/horario';
 import { calcularNovaOrdem, proximaOrdem } from '../utils/ordenacao';
 import { montarPendenciasLoja } from '../utils/pendenciasLoja';
+import { MENSAGEM_ERRO_CHAVE_PIX, validarChavePix } from '../utils/pixPayload';
 import { calcularProgressoLoja } from '../utils/progressoLoja';
 import { cancelamentoPermitido, STATUS_PEDIDO, transicaoValida } from '../utils/statusPedido';
 import { calcularTrial } from '../utils/trial';
@@ -130,6 +131,9 @@ const atualizarLojaSchema = z
     capaUrl: z.string().url().nullable().optional(),
     endereco: z.string().nullable().optional(),
     chavePix: z.string().nullable().optional(),
+    pixTipoChave: z.enum(['cpf', 'cnpj', 'telefone', 'email', 'aleatoria']).nullable().optional(),
+    pixTitular: z.string().nullable().optional(),
+    pixCidade: z.string().nullable().optional(),
     telefoneWhatsapp: z.string().min(8).optional(),
     horarioAbertura: z.string().nullable().optional(),
     horarioFechamento: z.string().nullable().optional(),
@@ -166,6 +170,26 @@ adminRouter.put('/loja', async (req, res) => {
     const validacaoHorarios = validarHorariosFuncionamento(parsed.data.horariosFuncionamento);
     if (!validacaoHorarios.valido) {
       return res.status(400).json({ erro: validacaoHorarios.erro });
+    }
+  }
+
+  // Só valida a chave quando um tipo é informado — loja antiga que só tem
+  // `chavePix` (modo simples, sem tipo/titular/cidade) nunca passa por aqui,
+  // então nunca é bloqueada por editar qualquer outro dado da loja (ver
+  // relatório da missão). Quando o tipo vem no body mas a chave não (não
+  // acontece no formulário atual, que sempre manda os dois juntos, mas fica
+  // defensivo pra qualquer outro chamador), usa a chave já salva.
+  if (parsed.data.pixTipoChave) {
+    const chaveParaValidar =
+      parsed.data.chavePix !== undefined
+        ? parsed.data.chavePix
+        : (await prisma.loja.findUnique({ where: { id: lojaId }, select: { chavePix: true } }))
+            ?.chavePix;
+    if (!chaveParaValidar || !validarChavePix(parsed.data.pixTipoChave, chaveParaValidar)) {
+      return res.status(400).json({
+        erro: MENSAGEM_ERRO_CHAVE_PIX[parsed.data.pixTipoChave],
+        campo: 'pix',
+      });
     }
   }
 
@@ -795,6 +819,32 @@ adminRouter.post('/pedidos/:id/cancelar', async (req, res) => {
   const pedido = await prisma.pedido.update({
     where: { id: existente.id },
     data: { status: 'cancelado', motivoCancelamento: parsed.data.motivo },
+  });
+  res.json(serializarPedido(pedido));
+});
+
+// Só esse endpoint (autenticado + escopado por lojaId do token) grava
+// 'pagamento_confirmado' — o cliente nunca tem como chamar isso (ver
+// POST /public/.../pix/informar-pagamento, que só chega até
+// 'cliente_informou_pagamento'). "Já fiz o Pix" do cliente NUNCA é prova de
+// pagamento; só o lojista confirma que o valor caiu na conta dele.
+adminRouter.post('/pedidos/:id/pix/confirmar-pagamento', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const existente = await prisma.pedido.findFirst({ where: { id: req.params.id, lojaId } });
+  if (!existente) return res.status(404).json({ erro: 'Pedido não encontrado' });
+
+  if (existente.formaPagamento !== 'pix') {
+    return res.status(400).json({ erro: 'Este pedido não é um pagamento via Pix' });
+  }
+  if (existente.statusPagamento === 'pagamento_confirmado') {
+    return res.status(409).json({ erro: 'Pagamento já confirmado anteriormente' });
+  }
+
+  const pedido = await prisma.pedido.update({
+    where: { id: existente.id },
+    data: { statusPagamento: 'pagamento_confirmado', pagamentoConfirmadoEm: new Date() },
   });
   res.json(serializarPedido(pedido));
 });

@@ -18,7 +18,7 @@ import {
   normalizarCor,
 } from '../lib/cor';
 import { agendaInicialAPartirDoLegado } from '../lib/horario';
-import { api, enviarFoto } from '../lib/api';
+import { api, ApiError, enviarFoto } from '../lib/api';
 import { Loja } from '../types';
 import { PainelLayoutContexto } from './PainelLayout';
 
@@ -33,6 +33,7 @@ export function PainelLoja() {
   const [enviandoCapa, setEnviandoCapa] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroPix, setErroPix] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState<'logo' | 'capa' | null>(null);
   const [corPrimariaTexto, setCorPrimariaTexto] = useState('');
   const [corSecundariaTexto, setCorSecundariaTexto] = useState('');
@@ -86,6 +87,8 @@ export function PainelLoja() {
     if (!loja) return;
     setSalvando(true);
     setMensagem(null);
+    setErro(null);
+    setErroPix(null);
     try {
       const atualizada = await api<Loja>('/api/admin/loja', {
         method: 'PUT',
@@ -99,6 +102,9 @@ export function PainelLoja() {
           latitude: loja.latitude,
           longitude: loja.longitude,
           chavePix: loja.chavePix || null,
+          pixTipoChave: loja.chavePix ? loja.pixTipoChave : null,
+          pixTitular: loja.chavePix ? loja.pixTitular || null : null,
+          pixCidade: loja.chavePix ? loja.pixCidade || null : null,
           telefoneWhatsapp: loja.telefoneWhatsapp,
           horariosFuncionamento: loja.horariosFuncionamento,
           abertoManual: loja.abertoManual,
@@ -116,6 +122,15 @@ export function PainelLoja() {
       // sem isso, endereço/localização/horário salvos aqui não apareciam nas
       // outras telas até um refresh manual da página.
       recarregarLoja();
+    } catch (e) {
+      const erroApi = e as ApiError & { campo?: string };
+      if (erroApi.campo === 'pix') {
+        // Erro específico da validação da chave Pix — mostrado junto do
+        // bloco "Pix manual", não no alerta genérico do topo (ver missão).
+        setErroPix(erroApi.message);
+      } else {
+        setErro(erroApi.message ?? 'Erro ao salvar');
+      }
     } finally {
       setSalvando(false);
     }
@@ -373,15 +388,68 @@ export function PainelLoja() {
           {erroLocalizacao && <p className="mt-1.5 text-xs text-red-600">{erroLocalizacao}</p>}
         </div>
 
-        <label className={LABEL}>Chave Pix</label>
-        <Input
-          value={loja.chavePix ?? ''}
-          onChange={(e) => setLoja({ ...loja, chavePix: e.target.value })}
-          placeholder="CPF, e-mail, telefone ou chave aleatória"
-        />
-        <p className="-mt-2 text-xs text-gray-500">
-          Aparece pro cliente no WhatsApp quando ele escolher pagar via Pix.
-        </p>
+        <div className="rounded-lg border border-gray-200 p-3">
+          <p className="text-sm font-semibold text-gray-800">Pix manual</p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            Receba diretamente na sua chave Pix. A confirmação do pagamento é feita manualmente pela
+            loja.
+          </p>
+
+          <label className={`${LABEL} mt-3 block`}>Chave Pix</label>
+          <Input
+            value={loja.chavePix ?? ''}
+            onChange={(e) => setLoja({ ...loja, chavePix: e.target.value })}
+            placeholder="CPF, e-mail, telefone ou chave aleatória"
+          />
+          {erroPix && <p className="mt-1.5 text-xs text-red-600">{erroPix}</p>}
+
+          {loja.chavePix && (
+            <>
+              <label className={`${LABEL} mt-3 block`}>Tipo da chave</label>
+              <Select
+                value={loja.pixTipoChave ?? ''}
+                onChange={(e) =>
+                  setLoja({
+                    ...loja,
+                    pixTipoChave: (e.target.value || null) as Loja['pixTipoChave'],
+                  })
+                }
+              >
+                <option value="">Selecione...</option>
+                <option value="cpf">CPF</option>
+                <option value="cnpj">CNPJ</option>
+                <option value="telefone">Telefone</option>
+                <option value="email">E-mail</option>
+                <option value="aleatoria">Chave aleatória</option>
+              </Select>
+
+              <label className={`${LABEL} mt-3 block`}>Nome do beneficiário/titular</label>
+              <Input
+                value={loja.pixTitular ?? ''}
+                onChange={(e) => setLoja({ ...loja, pixTitular: e.target.value })}
+                placeholder="Nome de quem recebe o Pix"
+              />
+
+              <label className={`${LABEL} mt-3 block`}>Cidade do beneficiário</label>
+              <Input
+                value={loja.pixCidade ?? ''}
+                onChange={(e) => setLoja({ ...loja, pixCidade: e.target.value })}
+                placeholder="Cidade de quem recebe o Pix"
+              />
+
+              <p className="mt-2 text-xs text-gray-500">
+                {loja.pixTipoChave && loja.pixTitular && loja.pixCidade
+                  ? 'Com esses dados, o cliente vê um QR Code e Pix Copia e Cola prontos na hora de pagar.'
+                  : 'Preencha os 3 campos acima pra o cliente ver um QR Code pronto pra pagar — sem eles, ele só vê a chave em texto (como já era antes).'}
+              </p>
+            </>
+          )}
+
+          <div className="mt-3 flex items-center gap-2 rounded-md bg-gray-50 px-2.5 py-2 text-xs text-gray-400">
+            <span>🔒</span>
+            <span>Pix com confirmação automática — Em breve</span>
+          </div>
+        </div>
 
         <label className={LABEL}>Telefone WhatsApp (com DDI+DDD, só números)</label>
         <Input

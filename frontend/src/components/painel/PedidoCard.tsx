@@ -136,6 +136,8 @@ interface Props {
   destacado: boolean;
   aoMudarStatus: (pedido: PedidoAdmin, status: StatusPedido) => void;
   aoCancelar?: (pedido: PedidoAdmin) => void;
+  /** Chama POST /admin/pedidos/:id/pix/confirmar-pagamento e devolve o pedido atualizado pro card refletir "Pix confirmado". Cliente nunca tem acesso a essa ação. */
+  aoConfirmarPagamentoPix?: (pedido: PedidoAdmin) => void | Promise<void>;
   /** Só true nas colunas do desktop — mobile nunca arrasta (ver missão). */
   arrastavel?: boolean;
   compacto?: boolean;
@@ -145,17 +147,24 @@ interface Props {
   onArrastarFim?: () => void;
 }
 
+function formatarDataHora(iso: string): string {
+  return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
+
 export function PedidoCard({
   pedido,
   destacado,
   aoMudarStatus,
   aoCancelar,
+  aoConfirmarPagamentoPix,
   arrastavel = false,
   compacto = false,
   estaSendoArrastado = false,
   onArrastarInicio,
   onArrastarFim,
 }: Props) {
+  const [confirmandoPix, setConfirmandoPix] = useState(false);
+  const [confirmandoPixEnviando, setConfirmandoPixEnviando] = useState(false);
   const proximo = proximoStatus(pedido.status);
   const rotuloAcao = rotuloProximaAcao(pedido.status, pedido.formaRecebimento);
   const podeCancelar = transicaoValida(pedido.status, 'cancelado');
@@ -170,6 +179,17 @@ export function PedidoCard({
     e.dataTransfer.setData('text/plain', pedido.id);
     e.dataTransfer.effectAllowed = 'move';
     onArrastarInicio?.(pedido.id);
+  }
+
+  async function confirmarPagamentoPix() {
+    if (!aoConfirmarPagamentoPix) return;
+    setConfirmandoPixEnviando(true);
+    try {
+      await aoConfirmarPagamentoPix(pedido);
+      setConfirmandoPix(false);
+    } finally {
+      setConfirmandoPixEnviando(false);
+    }
   }
 
   return (
@@ -263,6 +283,59 @@ export function PedidoCard({
         <span className="text-gray-600">{detalhePagamento(pedido)}</span>
         <span className="font-semibold text-gray-800">R$ {pedido.total.toFixed(2)}</span>
       </div>
+
+      {pedido.formaPagamento === 'pix' && pedido.statusPagamento === 'pagamento_confirmado' && (
+        <p className="rounded-lg bg-green-50 px-2.5 py-2 text-xs font-medium text-green-700">
+          Pix confirmado
+          {pedido.pagamentoConfirmadoEm && ` em ${formatarDataHora(pedido.pagamentoConfirmadoEm)}`}
+        </p>
+      )}
+
+      {pedido.formaPagamento === 'pix' &&
+        pedido.statusPagamento !== 'pagamento_confirmado' &&
+        (confirmandoPix ? (
+          <div className="flex flex-col gap-2 rounded-lg border border-yellow-200 bg-yellow-50 p-2.5">
+            <p className="text-xs text-yellow-800">
+              Confirma que o pagamento deste pedido foi recebido?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                tamanho="sm"
+                onClick={confirmarPagamentoPix}
+                disabled={confirmandoPixEnviando}
+              >
+                {confirmandoPixEnviando ? 'Confirmando...' : 'Sim, confirmar'}
+              </Button>
+              <Button
+                type="button"
+                tamanho="sm"
+                variante="secondary"
+                onClick={() => setConfirmandoPix(false)}
+                disabled={confirmandoPixEnviando}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-yellow-50 px-2.5 py-2 text-xs text-yellow-800">
+            <span>
+              {pedido.statusPagamento === 'cliente_informou_pagamento'
+                ? 'Cliente informou pagamento — confira sua conta'
+                : 'Pix — aguardando confirmação'}
+            </span>
+            {aoConfirmarPagamentoPix && (
+              <button
+                type="button"
+                onClick={() => setConfirmandoPix(true)}
+                className="shrink-0 rounded-md bg-white px-2 py-1 font-medium text-primary-hover shadow-sm transition-colors hover:bg-primary-light"
+              >
+                Confirmar pagamento
+              </button>
+            )}
+          </div>
+        ))}
 
       {pedido.status === 'cancelado' && pedido.motivoCancelamento && (
         <p className="rounded-lg bg-red-50 px-2.5 py-2 text-xs text-red-700">

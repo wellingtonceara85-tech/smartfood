@@ -33,6 +33,11 @@ interface PedidoMensagem {
   trocoPara: number | null;
   tipoCartao: string | null;
   chavePix: string | null;
+  // Só relevante quando formaPagamento === 'pix'. null/undefined (pedido
+  // recém-criado, ainda sem o cliente ter passado pela etapa de pagamento,
+  // ou forma de pagamento diferente de Pix) cai no texto de "aguardando".
+  statusPagamentoPix?:
+    'aguardando_pagamento' | 'cliente_informou_pagamento' | 'pagamento_confirmado' | null;
   linkAcompanhamento: string;
   agendamentoFormatado?: string | null;
 }
@@ -111,12 +116,28 @@ export function montarMensagemPedido(
   } else if (pedido.formaPagamento === 'cartao') {
     detalhePagamento = `Cartão - ${pedido.tipoCartao === 'credito' ? 'Crédito' : 'Débito'}`;
   }
-  const linhaPagamento = `Pagamento em: ${detalhePagamento}`;
+  linhas.push('');
 
-  linhas.push('', linhaPagamento);
-
-  if (pedido.formaPagamento === 'pix' && pedido.chavePix) {
-    linhas.push(`Chave Pix da loja: ${pedido.chavePix}`);
+  if (pedido.formaPagamento === 'pix') {
+    // Substitui a linha genérica "Pagamento em: Pix" por uma mais completa,
+    // que já deixa claro que a confirmação é manual — sem nunca afirmar que
+    // existe confirmação bancária automática.
+    if (pedido.statusPagamentoPix === 'cliente_informou_pagamento') {
+      linhas.push(
+        'Pagamento: Pix — confirmação manual',
+        'Cliente informou que realizou o pagamento.',
+        'Confirme o recebimento antes de preparar/liberar o pedido.',
+      );
+    } else if (pedido.statusPagamentoPix === 'pagamento_confirmado') {
+      linhas.push('Pagamento: Pix — confirmado ✅');
+    } else {
+      linhas.push('Pagamento: Pix — aguardando pagamento');
+    }
+    if (pedido.chavePix) {
+      linhas.push(`Chave Pix da loja: ${pedido.chavePix}`);
+    }
+  } else {
+    linhas.push(`Pagamento em: ${detalhePagamento}`);
   }
 
   linhas.push(

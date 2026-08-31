@@ -30,8 +30,108 @@ import { calcularAberto, HorariosFuncionamento } from '../utils/horario';
 import { signAccessToken, signRefreshToken } from '../utils/jwt';
 import { montarMensagemPedido } from '../utils/mensagemWhatsapp';
 import { projetarPedidoAnteriorPublico } from '../utils/pedidoPublico';
+import { gerarPayloadPix, lojaTemDadosPixCompletos, TipoChavePix } from '../utils/pixPayload';
 
 export const publicRouter = Router();
+
+interface ItemPedidoSalvo {
+  nome: string;
+  opcao: string | null;
+  quantidade: number;
+  subtotal: number;
+  observacao: string | null;
+}
+
+/**
+ * Reconstrói mensagem + link do WhatsApp a partir de um Pedido já salvo —
+ * usado só por /pix/informar-pagamento, pra mandar uma mensagem atualizada
+ * (agora com "cliente informou pagamento") sem duplicar toda a lógica de
+ * criação do pedido acima.
+ */
+function mensagemDoPedidoSalvo(
+  loja: { nome: string; telefoneWhatsapp: string; slug: string; chavePix: string | null },
+  pedido: {
+    id: string;
+    numero: number;
+    clienteNome: string;
+    clienteTelefone: string;
+    itens: unknown;
+    formaRecebimento: string;
+    bairroEntregaNome: string | null;
+    valorEntrega: unknown;
+    entregaCep: string | null;
+    entregaLogradouro: string | null;
+    entregaNumero: string | null;
+    entregaComplemento: string | null;
+    entregaBairro: string | null;
+    entregaCidade: string | null;
+    entregaEstado: string | null;
+    entregaReferencia: string | null;
+    formaPagamento: string;
+    precisaTroco: boolean | null;
+    trocoPara: unknown;
+    tipoCartao: string | null;
+    total: unknown;
+    tipoPedido: string;
+    dataAgendamento: Date | null;
+  },
+  statusPagamentoPix:
+    'aguardando_pagamento' | 'cliente_informou_pagamento' | 'pagamento_confirmado',
+) {
+  const enderecoValidado =
+    pedido.formaRecebimento === 'entrega' &&
+    pedido.entregaCep &&
+    pedido.entregaLogradouro &&
+    pedido.entregaNumero &&
+    pedido.entregaBairro &&
+    pedido.entregaCidade &&
+    pedido.entregaEstado
+      ? {
+          cep: pedido.entregaCep,
+          logradouro: pedido.entregaLogradouro,
+          numero: pedido.entregaNumero,
+          complemento: pedido.entregaComplemento,
+          bairro: pedido.entregaBairro,
+          cidade: pedido.entregaCidade,
+          estado: pedido.entregaEstado,
+          referencia: pedido.entregaReferencia,
+        }
+      : null;
+
+  const linkAcompanhamento = `${env.frontendUrl}/${loja.slug}/pedido/${pedido.id}`;
+  const mensagem = montarMensagemPedido(
+    loja.nome,
+    pedido.itens as ItemPedidoSalvo[],
+    Number(pedido.total),
+    {
+      forma: pedido.formaRecebimento as 'entrega' | 'retirada',
+      bairroNome: pedido.bairroEntregaNome,
+      valorEntrega: Number(pedido.valorEntrega),
+      endereco: enderecoValidado,
+    },
+    {
+      numero: pedido.numero,
+      clienteNome: pedido.clienteNome,
+      clienteTelefone: pedido.clienteTelefone,
+      formaPagamento: pedido.formaPagamento,
+      precisaTroco: pedido.precisaTroco ?? false,
+      trocoPara:
+        pedido.trocoPara === null || pedido.trocoPara === undefined
+          ? null
+          : Number(pedido.trocoPara),
+      tipoCartao: pedido.tipoCartao,
+      chavePix: loja.chavePix,
+      statusPagamentoPix,
+      linkAcompanhamento,
+      agendamentoFormatado:
+        pedido.tipoPedido === 'agendado' && pedido.dataAgendamento
+          ? formatarDataHoraLocal(pedido.dataAgendamento)
+          : null,
+    },
+  );
+  const linkWhatsapp = `https://wa.me/${loja.telefoneWhatsapp}?text=${encodeURIComponent(mensagem)}`;
+  return { mensagem, linkWhatsapp };
+}
 
 // Limita tentativas de telefone nesse endpoint: ele não autentica o cliente
 // (só filtra por loja+telefone), então sem isso alguém poderia varrer
@@ -422,8 +522,28 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       tipoPedido: parsed.data.tipoPedido,
       dataAgendamento: dataAgendamentoUtc,
       total,
+      // Só Pix ganha status de pagamento — outras formas ficam com null (não
+      // se aplica), inclusive pedidos criados antes desta coluna existir.
+      statusPagamento: parsed.data.formaPagamento === 'pix' ? 'aguardando_pagamento' : null,
     },
   });
+
+  // Payload Pix (QR/copia-e-cola) — só quando a loja cadastrou os 4 dados
+  // necessários (ver utils/pixPayload.ts); senão o Pix manual continua
+  // funcionando só com a chave em texto, como já era antes desta missão.
+  const pixPayload =
+    parsed.data.formaPagamento === 'pix' && lojaTemDadosPixCompletos(loja)
+      ? gerarPayloadPix(
+          {
+            chavePix: loja.chavePix,
+            tipoChave: loja.pixTipoChave as TipoChavePix,
+            titular: loja.pixTitular,
+            cidade: loja.pixCidade,
+          },
+          total,
+          `PED${numero}`,
+        )
+      : null;
 
   const linkAcompanhamento = `${env.frontendUrl}/${loja.slug}/pedido/${pedido.id}`;
   const mensagem = montarMensagemPedido(
@@ -445,13 +565,59 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       trocoPara: parsed.data.trocoPara ?? null,
       tipoCartao: parsed.data.tipoCartao ?? null,
       chavePix: loja.chavePix,
+      statusPagamentoPix: parsed.data.formaPagamento === 'pix' ? 'aguardando_pagamento' : null,
       linkAcompanhamento,
       agendamentoFormatado: dataAgendamentoUtc ? formatarDataHoraLocal(dataAgendamentoUtc) : null,
     },
   );
   const linkWhatsapp = `https://wa.me/${loja.telefoneWhatsapp}?text=${encodeURIComponent(mensagem)}`;
 
-  res.status(201).json({ pedido, mensagem, linkWhatsapp });
+  res.status(201).json({ pedido, mensagem, linkWhatsapp, pixPayload });
+});
+
+// Público, mas escopado por loja+id (mesmo padrão do rastreio do pedido
+// acima) — o cliente só consegue informar pagamento do PRÓPRIO pedido, nunca
+// de outro. Só avança 'aguardando_pagamento' -> 'cliente_informou_pagamento':
+// nunca grava 'pagamento_confirmado' (isso é exclusivo do lojista, ver
+// POST /admin/pedidos/:id/pix/confirmar-pagamento). "Já fiz o Pix" clicado
+// pelo cliente NUNCA é prova de pagamento.
+publicRouter.post('/lojas/:slug/pedidos/:id/pix/informar-pagamento', async (req, res) => {
+  const loja = await prisma.loja.findUnique({ where: { slug: req.params.slug } });
+  if (!loja) {
+    return res.status(404).json({ erro: 'Loja não encontrada' });
+  }
+
+  const pedido = await prisma.pedido.findFirst({
+    where: { id: req.params.id, lojaId: loja.id },
+  });
+  if (!pedido) {
+    return res.status(404).json({ erro: 'Pedido não encontrado' });
+  }
+  if (pedido.formaPagamento !== 'pix') {
+    return res.status(400).json({ erro: 'Este pedido não é um pagamento via Pix' });
+  }
+  if (pedido.statusPagamento !== 'aguardando_pagamento') {
+    // Já informado, já confirmado, ou estado inesperado — nada a fazer,
+    // devolve o estado atual em vez de sobrescrever silenciosamente.
+    const { mensagem, linkWhatsapp } = mensagemDoPedidoSalvo(
+      loja,
+      pedido,
+      (pedido.statusPagamento as 'cliente_informou_pagamento' | 'pagamento_confirmado' | null) ??
+        'aguardando_pagamento',
+    );
+    return res.json({ statusPagamento: pedido.statusPagamento, mensagem, linkWhatsapp });
+  }
+
+  const atualizado = await prisma.pedido.update({
+    where: { id: pedido.id },
+    data: { statusPagamento: 'cliente_informou_pagamento', pagamentoInformadoEm: new Date() },
+  });
+  const { mensagem, linkWhatsapp } = mensagemDoPedidoSalvo(
+    loja,
+    atualizado,
+    'cliente_informou_pagamento',
+  );
+  res.json({ statusPagamento: atualizado.statusPagamento, mensagem, linkWhatsapp });
 });
 
 // --- Ativação de conta do dono da loja ---

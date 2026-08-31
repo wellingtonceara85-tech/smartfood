@@ -19,6 +19,7 @@ interface Props {
   novosIds: Set<string>;
   aoMudarStatus: (pedido: PedidoAdmin, status: StatusPedido) => Promise<void> | void;
   aoAbrirCancelamento: (pedido: PedidoAdmin) => void;
+  aoConfirmarPagamentoPix?: (pedido: PedidoAdmin) => void | Promise<void>;
 }
 
 export function CentralOperacional({
@@ -26,6 +27,7 @@ export function CentralOperacional({
   novosIds,
   aoMudarStatus,
   aoAbrirCancelamento,
+  aoConfirmarPagamentoPix,
 }: Props) {
   const [arrastandoId, setArrastandoId] = useState<string | null>(null);
   const [colunaHover, setColunaHover] = useState<StatusPedido | null>(null);
@@ -145,6 +147,7 @@ export function CentralOperacional({
                     destacado={novosIds.has(pedido.id)}
                     aoMudarStatus={aoMudarStatus}
                     aoCancelar={aoAbrirCancelamento}
+                    aoConfirmarPagamentoPix={aoConfirmarPagamentoPix}
                     arrastavel
                     estaSendoArrastado={arrastandoId === pedido.id}
                     onArrastarInicio={aoIniciarArrasto}
@@ -239,6 +242,7 @@ export function CentralOperacional({
                 destacado={novosIds.has(pedido.id)}
                 aoMudarStatus={aoMudarStatus}
                 aoCancelar={aoAbrirCancelamento}
+                aoConfirmarPagamentoPix={aoConfirmarPagamentoPix}
               />
             ));
           })()}

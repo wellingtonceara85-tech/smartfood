@@ -16,6 +16,32 @@ const pedidoBase = {
   linkAcompanhamento: 'https://smartfood.app/loja/pedido/123',
 };
 
+test('Pix sem status informado mostra "aguardando pagamento", nunca confirmação automática', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    itensBase,
+    22.9,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+  assert.match(mensagem, /Pagamento: Pix — aguardando pagamento/);
+  assert.match(mensagem, /Chave Pix da loja: loja@pix\.com\.br/);
+  assert.doesNotMatch(mensagem, /confirmado|PAGO/i);
+});
+
+test('Pix com cliente_informou_pagamento pede confirmação manual ao lojista', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    itensBase,
+    22.9,
+    { forma: 'retirada' },
+    { ...pedidoBase, statusPagamentoPix: 'cliente_informou_pagamento' },
+  );
+  assert.match(mensagem, /Pagamento: Pix — confirmação manual/);
+  assert.match(mensagem, /Cliente informou que realizou o pagamento\./);
+  assert.match(mensagem, /Confirme o recebimento antes de preparar\/liberar o pedido\./);
+});
+
 test('mensagem de Entrega inclui o bloco de endereço', () => {
   const mensagem = montarMensagemPedido(
     'Lanchonete Teste',
