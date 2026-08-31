@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { useNotificacoes } from '../context/NotificacoesContext';
@@ -178,6 +179,18 @@ export function PainelConfiguracoes() {
         (aba aberta) e notificações do navegador ativadas, você também recebe um aviso do sistema —
         com o app totalmente fechado ainda não há garantia de alerta.
       </p>
+
+      <Link to="/painel/sugestoes">
+        <Card className="flex items-center justify-between gap-3 transition-colors hover:bg-gray-50">
+          <span>
+            <span className="block text-sm font-medium text-gray-800">
+              💡 Tem alguma ideia para melhorar o SmartFood?
+            </span>
+            <span className="block text-xs text-gray-500">Envie sua sugestão pra nossa equipe</span>
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-primary">Enviar →</span>
+        </Card>
+      </Link>
     </div>
   );
 }

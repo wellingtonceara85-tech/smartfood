@@ -1,9 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { env } from '../env';
 import { requireAuth, requirePapel } from '../middleware/auth';
+import { rodandoNoCloudFunctions } from '../multipartUpload';
 import { prisma } from '../prisma';
+import { privateUploadsDir } from '../privateUploads';
 import { dataExpiracaoConvite, gerarTokenConvite, hashToken } from '../utils/convite';
 import { lojaElegivelParaExclusao } from '../utils/elegibilidadeExclusao';
 import {
@@ -239,6 +243,10 @@ adminMasterRouter.post('/lojas', async (req, res) => {
           },
         },
       },
+      // Loja nova entra com o wizard de implantação guiada pendente — só
+      // lojas que já existiam antes desta feature são retroativamente
+      // marcadas como concluídas (ver prisma/backfillOnboardingExistente.ts).
+      onboarding: { create: {} },
     },
   });
 
@@ -570,4 +578,147 @@ adminMasterRouter.post('/lojas/:id/trial/prorrogar', async (req, res) => {
     id: atualizada.id,
     trial: calcularTrial(atualizada.trialInicioEm, atualizada.trialFimEm),
   });
+});
+
+// --- Cardápios assistidos (PDF/imagem enviados pelo lojista pra revisão humana) ---
+
+const listaCardapiosAssistidosSchema = z.object({
+  status: z
+    .enum(['recebido', 'em_revisao', 'aguardando_lojista', 'aprovado', 'concluido'])
+    .optional(),
+});
+
+adminMasterRouter.get('/cardapios-assistidos', async (req, res) => {
+  const parsed = listaCardapiosAssistidosSchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ erro: 'Parâmetros inválidos' });
+
+  const solicitacoes = await prisma.solicitacaoCardapioAssistido.findMany({
+    where: parsed.data.status ? { status: parsed.data.status } : undefined,
+    orderBy: { criadoEm: 'desc' },
+    include: { loja: { select: { id: true, nome: true, slug: true } } },
+  });
+
+  res.json(
+    solicitacoes.map((s) => ({
+      id: s.id,
+      loja: s.loja,
+      origem: s.origem,
+      nomeArquivoOriginal: s.nomeArquivoOriginal,
+      status: s.status,
+      criadoEm: s.criadoEm,
+      atualizadoEm: s.atualizadoEm,
+    })),
+  );
+});
+
+adminMasterRouter.get('/cardapios-assistidos/:id', async (req, res) => {
+  const solicitacao = await prisma.solicitacaoCardapioAssistido.findUnique({
+    where: { id: req.params.id },
+    include: { loja: { select: { id: true, nome: true, slug: true, telefoneWhatsapp: true } } },
+  });
+  if (!solicitacao) return res.status(404).json({ erro: 'Solicitação não encontrada' });
+
+  res.json({
+    id: solicitacao.id,
+    loja: solicitacao.loja,
+    origem: solicitacao.origem,
+    nomeArquivoOriginal: solicitacao.nomeArquivoOriginal,
+    mimetype: solicitacao.mimetype,
+    status: solicitacao.status,
+    criadoEm: solicitacao.criadoEm,
+    atualizadoEm: solicitacao.atualizadoEm,
+  });
+});
+
+// Único jeito de acessar o arquivo enviado — nunca por URL pública (o storage
+// não torna o arquivo público, ver routes/cardapioAssistido.ts). Exige o
+// mesmo Bearer token de Admin Master que qualquer outra rota deste arquivo.
+adminMasterRouter.get('/cardapios-assistidos/:id/arquivo', async (req, res) => {
+  const solicitacao = await prisma.solicitacaoCardapioAssistido.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!solicitacao) return res.status(404).json({ erro: 'Solicitação não encontrada' });
+
+  res.setHeader('Content-Type', solicitacao.mimetype);
+  res.setHeader(
+    'Content-Disposition',
+    `inline; filename="${encodeURIComponent(solicitacao.nomeArquivoOriginal)}"`,
+  );
+
+  if (rodandoNoCloudFunctions) {
+    const { garantirFirebaseApp } = await import('../firebaseAdmin');
+    const { getStorage } = await import('firebase-admin/storage');
+    garantirFirebaseApp();
+    const bucket = getStorage().bucket();
+    bucket
+      .file(solicitacao.arquivoStorageKey)
+      .createReadStream()
+      .on('error', () => res.status(404).end())
+      .pipe(res);
+    return;
+  }
+
+  const caminho = path.join(privateUploadsDir, solicitacao.arquivoStorageKey);
+  fs.createReadStream(caminho)
+    .on('error', () => res.status(404).json({ erro: 'Arquivo não encontrado' }))
+    .pipe(res);
+});
+
+const atualizarStatusCardapioAssistidoSchema = z.object({
+  status: z.enum(['recebido', 'em_revisao', 'aguardando_lojista', 'aprovado', 'concluido']),
+});
+
+adminMasterRouter.patch('/cardapios-assistidos/:id/status', async (req, res) => {
+  const parsed = atualizarStatusCardapioAssistidoSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ erro: 'Status inválido' });
+
+  const solicitacao = await prisma.solicitacaoCardapioAssistido.findUnique({
+    where: { id: req.params.id },
+  });
+  if (!solicitacao) return res.status(404).json({ erro: 'Solicitação não encontrada' });
+
+  const atualizada = await prisma.solicitacaoCardapioAssistido.update({
+    where: { id: solicitacao.id },
+    data: { status: parsed.data.status },
+  });
+  res.json({ id: atualizada.id, status: atualizada.status });
+});
+
+// --- Sugestões e melhorias enviadas pelos lojistas ---
+
+const listaSugestoesSchema = z.object({
+  status: z.enum(['nova', 'em_analise', 'planejada', 'implementada', 'nao_planejada']).optional(),
+  categoria: z
+    .enum(['cardapio', 'pedidos', 'financeiro', 'entregas', 'relatorios', 'outro'])
+    .optional(),
+});
+
+adminMasterRouter.get('/sugestoes', async (req, res) => {
+  const parsed = listaSugestoesSchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ erro: 'Parâmetros inválidos' });
+
+  const sugestoes = await prisma.sugestaoLojista.findMany({
+    where: { status: parsed.data.status, categoria: parsed.data.categoria },
+    orderBy: { criadoEm: 'desc' },
+    include: { loja: { select: { id: true, nome: true, slug: true } } },
+  });
+  res.json(sugestoes);
+});
+
+const atualizarStatusSugestaoSchema = z.object({
+  status: z.enum(['nova', 'em_analise', 'planejada', 'implementada', 'nao_planejada']),
+});
+
+adminMasterRouter.patch('/sugestoes/:id/status', async (req, res) => {
+  const parsed = atualizarStatusSugestaoSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ erro: 'Status inválido' });
+
+  const sugestao = await prisma.sugestaoLojista.findUnique({ where: { id: req.params.id } });
+  if (!sugestao) return res.status(404).json({ erro: 'Sugestão não encontrada' });
+
+  const atualizada = await prisma.sugestaoLojista.update({
+    where: { id: sugestao.id },
+    data: { status: parsed.data.status },
+  });
+  res.json(atualizada);
 });

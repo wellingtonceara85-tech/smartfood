@@ -38,6 +38,9 @@ backend/prisma/generated/
 # Uploads locais (fotos de produto/loja)
 backend/uploads/
 
+# Uploads privados locais (cardápio assistido — PDF/imagem, nunca público)
+backend/private-uploads/
+
 # Husky (v9 gera _/ opcionalmente)
 .husky/_/
 

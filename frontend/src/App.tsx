@@ -3,6 +3,8 @@ import { RotaAdminMaster } from './components/RotaAdminMaster';
 import { RotaProtegida } from './components/RotaProtegida';
 import { useAuth } from './context/AuthContext';
 import { AcompanharPedido } from './pages/AcompanharPedido';
+import { AdminCardapiosAssistidos } from './pages/AdminCardapiosAssistidos';
+import { AdminFeedback } from './pages/AdminFeedback';
 import { AdminLojaDetalhe } from './pages/AdminLojaDetalhe';
 import { AdminLojas } from './pages/AdminLojas';
 import { AdminMasterLayout } from './pages/AdminMasterLayout';
@@ -21,7 +23,9 @@ import { PainelLayout } from './pages/PainelLayout';
 import { PainelLoja } from './pages/PainelLoja';
 import { PainelPedidos } from './pages/PainelPedidos';
 import { PainelProdutos } from './pages/PainelProdutos';
+import { PainelSugestoes } from './pages/PainelSugestoes';
 import { RedefinirSenha } from './pages/RedefinirSenha';
+import { OnboardingWizard } from './pages/onboarding/OnboardingWizard';
 
 export function App() {
   const { usuario } = useAuth();
@@ -38,6 +42,7 @@ export function App() {
       />
 
       <Route element={<RotaProtegida />}>
+        <Route path="/painel/onboarding" element={<OnboardingWizard />} />
         <Route path="/painel" element={<PainelLayout />}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<PainelDashboard />} />
@@ -45,6 +50,7 @@ export function App() {
           <Route path="pedidos" element={<PainelPedidos />} />
           <Route path="entrega" element={<PainelBairros />} />
           <Route path="loja" element={<PainelLoja />} />
+          <Route path="sugestoes" element={<PainelSugestoes />} />
           <Route path="configuracoes" element={<PainelConfiguracoes />} />
         </Route>
       </Route>
@@ -55,6 +61,8 @@ export function App() {
           <Route path="visao-geral" element={<AdminVisaoGeral />} />
           <Route path="lojas" element={<AdminLojas />} />
           <Route path="lojas/:id" element={<AdminLojaDetalhe />} />
+          <Route path="cardapios-assistidos" element={<AdminCardapiosAssistidos />} />
+          <Route path="feedback" element={<AdminFeedback />} />
         </Route>
       </Route>
 

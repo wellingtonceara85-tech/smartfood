@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 const ITENS_NAV = [
   { rota: '/admin/visao-geral', rotulo: 'Visão geral', icone: '📊' },
   { rota: '/admin/lojas', rotulo: 'Lojas', icone: '🏪' },
+  { rota: '/admin/cardapios-assistidos', rotulo: 'Cardápios assistidos', icone: '🖼️' },
+  { rota: '/admin/feedback', rotulo: 'Feedback', icone: '💡' },
 ];
 
 export function AdminMasterLayout() {

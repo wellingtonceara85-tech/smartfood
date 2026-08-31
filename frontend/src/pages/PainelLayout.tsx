@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { AvisoTrial } from '../components/AvisoTrial';
 import { BotaoSilenciarAlerta } from '../components/painel/BotaoSilenciarAlerta';
 import { BottomNavPainel } from '../components/painel/BottomNavPainel';
 import { ModalNovidades } from '../components/painel/ModalNovidades';
+import { Loading } from '../components/ui/Loading';
 import { SidebarPainel } from '../components/painel/SidebarPainel';
 import { SininhoNotificacoes } from '../components/painel/SininhoNotificacoes';
 import { ToastNovoPedido } from '../components/painel/ToastNovoPedido';
 import { useAuth } from '../context/AuthContext';
 import { NotificacoesProvider } from '../context/NotificacoesContext';
 import { api } from '../lib/api';
-import { Loja } from '../types';
+import { Loja, OnboardingLoja } from '../types';
 
 export interface PainelLayoutContexto {
   loja: Loja | null;
@@ -19,8 +20,10 @@ export interface PainelLayoutContexto {
 
 export function PainelLayout() {
   const { usuario, logout } = useAuth();
+  const navigate = useNavigate();
   const [loja, setLoja] = useState<Loja | null>(null);
   const [versaoLoja, setVersaoLoja] = useState(0);
+  const [verificandoOnboarding, setVerificandoOnboarding] = useState(true);
 
   useEffect(() => {
     api<Loja>('/api/admin/loja', { autenticado: true })
@@ -28,8 +31,29 @@ export function PainelLayout() {
       .catch(() => undefined);
   }, [versaoLoja]);
 
+  // Implantação guiada pendente redireciona pra ela ANTES de qualquer tela
+  // do painel normal — só verificado uma vez por sessão (não a cada troca de
+  // rota), porque uma vez concluído (`/onboarding/concluir`) nunca mais volta.
+  useEffect(() => {
+    api<OnboardingLoja>('/api/admin/onboarding', { autenticado: true })
+      .then((onboarding) => {
+        if (onboarding.status !== 'concluido') navigate('/painel/onboarding', { replace: true });
+      })
+      .catch(() => undefined)
+      .finally(() => setVerificandoOnboarding(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function recarregarLoja() {
     setVersaoLoja((v) => v + 1);
+  }
+
+  if (verificandoOnboarding) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loading />
+      </div>
+    );
   }
 
   return (

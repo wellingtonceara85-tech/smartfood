@@ -5,7 +5,11 @@ import { env } from './env';
 import { adminRouter } from './routes/admin';
 import { adminMasterRouter } from './routes/adminMaster';
 import { authRouter } from './routes/auth';
+import { cardapioAssistidoRouter } from './routes/cardapioAssistido';
+import { onboardingRouter } from './routes/onboarding';
 import { publicRouter } from './routes/public';
+import { rascunhoCardapioRouter } from './routes/rascunhoCardapio';
+import { sugestoesRouter } from './routes/sugestoes';
 import { uploadRouter } from './routes/upload';
 import { uploadsDir } from './uploads';
 
@@ -22,6 +26,10 @@ app.use('/api/auth', authRouter);
 app.use('/api/public', publicRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/admin/upload', uploadRouter);
+app.use('/api/admin/onboarding', onboardingRouter);
+app.use('/api/admin/rascunho-cardapio', rascunhoCardapioRouter);
+app.use('/api/admin/cardapio-assistido', cardapioAssistidoRouter);
+app.use('/api/admin/sugestoes', sugestoesRouter);
 app.use('/api/admin-master', adminMasterRouter);
 
 app.use((_req, res) => {

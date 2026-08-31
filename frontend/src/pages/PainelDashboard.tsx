@@ -61,6 +61,8 @@ export function PainelDashboard() {
   const [resumo, setResumo] = useState<DashboardResumo | null>(null);
   const [totalProdutos, setTotalProdutos] = useState<number | null>(null);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
+  const [progresso, setProgresso] = useState<number | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState(false);
   const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
@@ -76,10 +78,25 @@ export function PainelDashboard() {
     api<Produto[]>('/api/admin/produtos', { autenticado: true }).then((produtos) => {
       setTotalProdutos(produtos.length);
     });
-    api<{ pendencias: Pendencia[] }>('/api/admin/pendencias', { autenticado: true }).then((resp) =>
-      setPendencias(resp.pendencias),
-    );
+    api<{ pendencias: Pendencia[]; progresso: number }>('/api/admin/pendencias', {
+      autenticado: true,
+    }).then((resp) => {
+      setPendencias(resp.pendencias);
+      setProgresso(resp.progresso);
+    });
   }, []);
+
+  async function compartilharLink() {
+    if (!loja) return;
+    const link = `${window.location.origin}/${loja.slug}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopiado(true);
+      setTimeout(() => setLinkCopiado(false), 2500);
+    } catch {
+      // Sem permissão de clipboard (ex: contexto não-seguro) — sem alternativa melhor além de deixar o link visível pra copiar manualmente.
+    }
+  }
 
   function aplicarPeriodo(inicio: string, fim: string, chave: typeof periodoAtivo) {
     setDataInicio(inicio);
@@ -141,9 +158,16 @@ export function PainelDashboard() {
 
       {pendencias.length > 0 && (
         <Card className="border border-yellow-200 bg-yellow-50">
-          <p className="font-semibold text-gray-800">
-            <span aria-hidden="true">🚀</span> Deixe sua loja pronta para vender mais
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="font-semibold text-gray-800">
+              <span aria-hidden="true">🚀</span> Deixe sua loja pronta para vender mais
+            </p>
+            {progresso !== null && (
+              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 shadow-sm">
+                {progresso}% completa
+              </span>
+            )}
+          </div>
           <ul className="mt-2 flex flex-col gap-2">
             {pendencias.map((pendencia) => (
               <li key={pendencia.chave}>
@@ -161,6 +185,21 @@ export function PainelDashboard() {
             ))}
           </ul>
         </Card>
+      )}
+
+      {loja && (
+        <button
+          type="button"
+          onClick={compartilharLink}
+          className="flex items-center justify-between gap-3 rounded-card bg-primary-light px-4 py-3 text-left text-primary-hover shadow-card transition-colors hover:opacity-90"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <span aria-hidden="true">🔗</span> Compartilhe seu cardápio
+          </span>
+          <span className="text-sm font-semibold underline underline-offset-2">
+            {linkCopiado ? 'Link copiado!' : 'Copiar link'}
+          </span>
+        </button>
       )}
 
       <ProximosPedidos pedidos={pedidos} novosIds={novosIds} />

@@ -2,7 +2,7 @@
 
 Cardápio digital público por loja (MVP), inspirado no whatsmenu.com.br: o cliente abre o link da loja (`/:slug`), monta o pedido e finaliza direto no WhatsApp do estabelecimento — sem checkout online, sem pagamento integrado. O dono da loja tem um painel simples pra cadastrar produtos e controlar disponibilidade em tempo real.
 
-Escopo, modelo de dados, telas e critérios de aceite completos em [PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md](PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md) — esse arquivo é a fonte da verdade do MVP atual. Features adicionadas depois têm prompt próprio: [PROMPT_CLAUDE_CODE_SMARTFOOD_TAXA_ENTREGA.md](PROMPT_CLAUDE_CODE_SMARTFOOD_TAXA_ENTREGA.md). Infra de deploy: [PROMPT_CLAUDE_CODE_SMARTFOOD_DEPLOY_FIREBASE_NEON.md](PROMPT_CLAUDE_CODE_SMARTFOOD_DEPLOY_FIREBASE_NEON.md).
+Escopo, modelo de dados, telas e critérios de aceite completos em [PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md](PROMPT_CLAUDE_CODE_SMARTFOOD_MVP.md) — esse arquivo é a fonte da verdade do MVP atual. Features adicionadas depois têm prompt próprio: [PROMPT_CLAUDE_CODE_SMARTFOOD_TAXA_ENTREGA.md](PROMPT_CLAUDE_CODE_SMARTFOOD_TAXA_ENTREGA.md), [PROMPT_CLAUDE_CODE_SMARTFOOD_ONBOARDING_CARDAPIO_ASSISTIDO.md](PROMPT_CLAUDE_CODE_SMARTFOOD_ONBOARDING_CARDAPIO_ASSISTIDO.md). Infra de deploy: [PROMPT_CLAUDE_CODE_SMARTFOOD_DEPLOY_FIREBASE_NEON.md](PROMPT_CLAUDE_CODE_SMARTFOOD_DEPLOY_FIREBASE_NEON.md).
 
 ## Histórico
 

@@ -107,3 +107,43 @@ export async function enviarFoto(arquivo: File): Promise<string> {
   const dados = await resposta.json();
   return dados.url as string;
 }
+
+async function enviarArquivo<T>(caminho: string, campo: string, arquivo: File): Promise<T> {
+  const { accessToken } = getTokens();
+  const formData = new FormData();
+  formData.append(campo, arquivo);
+
+  const resposta = await fetch(`${API_URL}${caminho}`, {
+    method: 'POST',
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    body: formData,
+  });
+
+  if (!resposta.ok) {
+    const erro = await resposta.json().catch(() => ({ erro: resposta.statusText }));
+    throw Object.assign(new Error(erro.erro ?? 'Erro ao enviar arquivo'), erro, {
+      status: resposta.status,
+    });
+  }
+  return resposta.json() as Promise<T>;
+}
+
+export function enviarPlanilhaCardapio(
+  arquivo: File,
+): Promise<{ rascunhoId: string; itensImportados: number }> {
+  return enviarArquivo('/api/admin/rascunho-cardapio/planilha', 'arquivo', arquivo);
+}
+
+export function enviarArquivoCardapioAssistido(arquivo: File) {
+  return enviarArquivo('/api/admin/cardapio-assistido/solicitacoes', 'arquivo', arquivo);
+}
+
+/** Só o Admin Master pode reler o arquivo — nunca fica numa URL pública/direta. */
+export async function baixarArquivoCardapioAssistido(id: string): Promise<Blob> {
+  const { accessToken } = getTokens();
+  const resposta = await fetch(`${API_URL}/api/admin-master/cardapios-assistidos/${id}/arquivo`, {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
+  if (!resposta.ok) throw new Error('Não foi possível carregar o arquivo');
+  return resposta.blob();
+}

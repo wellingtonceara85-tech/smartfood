@@ -16,7 +16,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
-    "test": "tsx --test src/utils/agendamento.test.ts src/utils/convite.test.ts src/utils/cor.test.ts src/utils/distancia.test.ts src/utils/elegibilidadeExclusao.test.ts src/utils/emailRecuperacaoSenha.test.ts src/utils/endereco.test.ts src/utils/entregaPedido.test.ts src/utils/horario.test.ts src/utils/mensagemBoasVindas.test.ts src/utils/mensagemWhatsapp.test.ts src/utils/onboarding.test.ts src/utils/ordenacao.test.ts src/utils/pedidoPublico.test.ts src/utils/pendenciasLoja.test.ts src/utils/recuperacaoSenha.test.ts src/utils/statusPedido.test.ts src/utils/trial.test.ts src/utils/turnstile.test.ts"
+    "prisma:backfill-onboarding": "tsx prisma/backfillOnboardingExistente.ts",
+    "test": "tsx --test src/utils/agendamento.test.ts src/utils/convite.test.ts src/utils/cor.test.ts src/utils/csvSimples.test.ts src/utils/distancia.test.ts src/utils/elegibilidadeExclusao.test.ts src/utils/emailRecuperacaoSenha.test.ts src/utils/endereco.test.ts src/utils/entregaPedido.test.ts src/utils/horario.test.ts src/utils/lerXlsx.test.ts src/utils/mensagemBoasVindas.test.ts src/utils/mensagemWhatsapp.test.ts src/utils/onboarding.test.ts src/utils/ordenacao.test.ts src/utils/parserPlanilhaCardapio.test.ts src/utils/parserTextoCardapio.test.ts src/utils/pedidoPublico.test.ts src/utils/pendenciasLoja.test.ts src/utils/precoTexto.test.ts src/utils/progressoLoja.test.ts src/utils/recuperacaoSenha.test.ts src/utils/segmentoLoja.test.ts src/utils/statusPedido.test.ts src/utils/trial.test.ts src/utils/turnstile.test.ts src/utils/validacaoRascunho.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
@@ -24,6 +25,7 @@
     "busboy": "^1.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "express-rate-limit": "^8.6.1",
     "firebase-admin": "^13.0.2",

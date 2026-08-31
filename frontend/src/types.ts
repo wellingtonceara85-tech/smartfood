@@ -257,6 +257,103 @@ export interface Pendencia {
   rota: string;
 }
 
+// --- Onboarding guiado + cardápio assistido ---
+
+export type StatusOnboarding = 'nao_iniciado' | 'em_andamento' | 'concluido';
+export type MetodoCardapio = 'planilha' | 'colar_texto' | 'arquivo' | 'guiado' | 'manual';
+
+export interface SegmentoOpcao {
+  chave: string;
+  rotulo: string;
+}
+
+export interface OnboardingLoja {
+  id: string;
+  status: StatusOnboarding;
+  segmentoNegocio: string | null;
+  etapaAtual: string | null;
+  etapasConcluidas: string[] | null;
+  metodoCardapio: MetodoCardapio | null;
+  iniciadoEm: string | null;
+  concluidoEm: string | null;
+  segmentos?: SegmentoOpcao[];
+}
+
+export interface RascunhoCategoria {
+  id: string;
+  nome: string;
+  ordem: number;
+}
+
+export interface RascunhoProduto {
+  id: string;
+  rascunhoCategoriaId: string | null;
+  nome: string | null;
+  descricao: string | null;
+  preco: number | null;
+  precoTexto: string | null;
+  disponivel: boolean;
+  fotoUrl: string | null;
+  precisaRevisao: boolean;
+  motivosRevisao: string[];
+  possivelDuplicado: boolean;
+  publicado: boolean;
+  ordem: number;
+}
+
+export interface ResumoRascunho {
+  totalProdutos: number;
+  totalCategorias: number;
+  duplicados: number;
+  semDescricao: number;
+  semFoto: number;
+  precisaRevisao: number;
+  publicaveis: number;
+}
+
+export interface RascunhoCardapio {
+  id: string;
+  origem: 'planilha' | 'colar_texto';
+  status: 'rascunho' | 'publicado' | 'descartado';
+  categorias: RascunhoCategoria[];
+  produtos: RascunhoProduto[];
+  resumo: ResumoRascunho;
+}
+
+export type StatusSolicitacaoCardapio =
+  'recebido' | 'em_revisao' | 'aguardando_lojista' | 'aprovado' | 'concluido';
+
+export interface SolicitacaoCardapioAssistido {
+  id: string;
+  origem: 'pdf' | 'imagem';
+  nomeArquivoOriginal: string;
+  status: StatusSolicitacaoCardapio;
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
+export interface SolicitacaoCardapioAssistidoAdmin extends SolicitacaoCardapioAssistido {
+  loja: { id: string; nome: string; slug: string };
+  mimetype?: string;
+  telefoneWhatsapp?: string;
+}
+
+export type CategoriaSugestao =
+  'cardapio' | 'pedidos' | 'financeiro' | 'entregas' | 'relatorios' | 'outro';
+export type StatusSugestao = 'nova' | 'em_analise' | 'planejada' | 'implementada' | 'nao_planejada';
+
+export interface SugestaoLojista {
+  id: string;
+  categoria: CategoriaSugestao;
+  mensagem: string;
+  status: StatusSugestao;
+  criadoEm: string;
+}
+
+export interface SugestaoLojistaAdmin extends SugestaoLojista {
+  loja: { id: string; nome: string; slug: string };
+}
+
 export interface DashboardResumo {
   periodo: { inicio: string; fim: string };
   faturamentoTotal: number;

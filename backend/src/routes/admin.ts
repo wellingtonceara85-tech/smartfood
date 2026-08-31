@@ -12,6 +12,7 @@ import {
 } from '../utils/horario';
 import { calcularNovaOrdem, proximaOrdem } from '../utils/ordenacao';
 import { montarPendenciasLoja } from '../utils/pendenciasLoja';
+import { calcularProgressoLoja } from '../utils/progressoLoja';
 import { cancelamentoPermitido, STATUS_PEDIDO, transicaoValida } from '../utils/statusPedido';
 import { calcularTrial } from '../utils/trial';
 
@@ -225,7 +226,8 @@ adminRouter.get('/pendencias', async (req, res) => {
   ]);
   if (!loja) return res.status(404).json({ erro: 'Loja não encontrada' });
 
-  res.json({ pendencias: montarPendenciasLoja({ ...loja, produtos }) });
+  const pendencias = montarPendenciasLoja({ ...loja, produtos });
+  res.json({ pendencias, progresso: calcularProgressoLoja(pendencias.length) });
 });
 
 // --- Categorias ---
