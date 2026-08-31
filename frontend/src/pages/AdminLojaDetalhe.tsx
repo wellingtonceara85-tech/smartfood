@@ -36,6 +36,11 @@ interface FormularioEdicao {
   donoEmail: string;
 }
 
+interface LinkRecuperacaoSenha {
+  linkRedefinicaoSenha: string;
+  expiraEm: string;
+}
+
 export function AdminLojaDetalhe() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -50,6 +55,10 @@ export function AdminLojaDetalhe() {
   const [erroEdicao, setErroEdicao] = useState<string | null>(null);
   const [boasVindas, setBoasVindas] = useState<BoasVindasGeradas | null>(null);
   const [copiado, setCopiado] = useState<string | null>(null);
+  const [confirmandoRecuperacaoSenha, setConfirmandoRecuperacaoSenha] = useState(false);
+  const [linkRecuperacaoSenha, setLinkRecuperacaoSenha] = useState<LinkRecuperacaoSenha | null>(
+    null,
+  );
 
   async function carregar() {
     if (!id) return;
@@ -154,6 +163,29 @@ export function AdminLojaDetalhe() {
     }
   }
 
+  // Reaproveita exclusivamente o endpoint já publicado (POST
+  // /api/admin-master/lojas/:id/recuperacao-senha) — mesmo mecanismo de token
+  // do fluxo self-service. O Admin Master nunca vê nem define a senha em si,
+  // só recebe o link de uso único pra repassar manualmente ao lojista.
+  async function gerarLinkRecuperacaoSenha() {
+    if (!loja) return;
+    setProcessando(true);
+    setErro(null);
+    try {
+      const resp = await api<LinkRecuperacaoSenha>(
+        `/api/admin-master/lojas/${loja.id}/recuperacao-senha`,
+        { method: 'POST', autenticado: true },
+      );
+      setLinkRecuperacaoSenha(resp);
+      setConfirmandoRecuperacaoSenha(false);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível gerar o link de recuperação');
+      setConfirmandoRecuperacaoSenha(false);
+    } finally {
+      setProcessando(false);
+    }
+  }
+
   async function salvarEdicao(evento: React.FormEvent) {
     evento.preventDefault();
     if (!editando || !loja) return;
@@ -215,6 +247,34 @@ export function AdminLojaDetalhe() {
             readOnly
             value={boasVindas.mensagemBoasVindas}
             className="h-56 w-full rounded-lg border border-gray-300 p-3 text-sm text-gray-700"
+            onFocus={(e) => e.target.select()}
+          />
+        </Modal>
+      )}
+
+      {linkRecuperacaoSenha && (
+        <Modal
+          titulo="Link de recuperação de senha gerado"
+          aoFechar={() => setLinkRecuperacaoSenha(null)}
+        >
+          <p className="mb-2 text-sm text-gray-600">
+            Este link expira em <strong>1 hora</strong> e só pode ser usado <strong>uma vez</strong>
+            . Envie-o ao lojista — ele deverá abrir o link e criar a própria nova senha. Você não vê
+            nem define a senha dele em nenhum momento.
+          </p>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              tamanho="sm"
+              onClick={() => copiar(linkRecuperacaoSenha.linkRedefinicaoSenha, 'recuperacao-senha')}
+            >
+              {copiado === 'recuperacao-senha' ? 'Copiado!' : 'Copiar link'}
+            </Button>
+          </div>
+          <textarea
+            readOnly
+            value={linkRecuperacaoSenha.linkRedefinicaoSenha}
+            className="h-20 w-full rounded-lg border border-gray-300 p-3 text-sm text-gray-700"
             onFocus={(e) => e.target.select()}
           />
         </Modal>
@@ -320,6 +380,30 @@ export function AdminLojaDetalhe() {
               Reenviar link de ativação
             </Button>
           )}
+          {loja.donoAtivado &&
+            (confirmandoRecuperacaoSenha ? (
+              <>
+                <Button tamanho="sm" onClick={gerarLinkRecuperacaoSenha} disabled={processando}>
+                  {processando ? 'Gerando...' : 'Confirmar geração do link'}
+                </Button>
+                <Button
+                  tamanho="sm"
+                  variante="secondary"
+                  onClick={() => setConfirmandoRecuperacaoSenha(false)}
+                  disabled={processando}
+                >
+                  Cancelar
+                </Button>
+              </>
+            ) : (
+              <Button
+                tamanho="sm"
+                variante="secondary"
+                onClick={() => setConfirmandoRecuperacaoSenha(true)}
+              >
+                Gerar link de recuperação de senha
+              </Button>
+            ))}
           <Button tamanho="sm" variante="secondary" onClick={alternarStatus} disabled={processando}>
             {loja.status === 'suspensa' ? 'Reativar loja' : 'Suspender loja'}
           </Button>
