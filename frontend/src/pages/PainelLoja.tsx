@@ -19,7 +19,8 @@ import {
 } from '../lib/cor';
 import { agendaInicialAPartirDoLegado } from '../lib/horario';
 import { api, ApiError, enviarFoto } from '../lib/api';
-import { Loja } from '../types';
+import { corpoAtualizarSegmento, podeSalvarSegmento, segmentoInicial } from '../lib/onboarding';
+import { Loja, OnboardingLoja } from '../types';
 import { PainelLayoutContexto } from './PainelLayout';
 
 const LABEL = 'text-sm font-medium text-gray-700';
@@ -41,6 +42,16 @@ export function PainelLoja() {
   const [antecedenciaUnidade, setAntecedenciaUnidade] = useState<'minutos' | 'horas'>('horas');
   const [capturandoLocalizacao, setCapturandoLocalizacao] = useState(false);
   const [erroLocalizacao, setErroLocalizacao] = useState<string | null>(null);
+
+  // Tipo de negócio (segmentoNegocio) — mora em OnboardingLoja, não em Loja,
+  // por isso é buscado e salvo à parte do resto desta tela, direto no
+  // endpoint que o wizard de implantação já usa (PUT /admin/onboarding).
+  // Nunca manda etapaAtual/status/metodoCardapio — só o segmento.
+  const [onboarding, setOnboarding] = useState<OnboardingLoja | null>(null);
+  const [segmentoSelecionado, setSegmentoSelecionado] = useState('');
+  const [salvandoSegmento, setSalvandoSegmento] = useState(false);
+  const [mensagemSegmento, setMensagemSegmento] = useState<string | null>(null);
+  const [erroSegmento, setErroSegmento] = useState<string | null>(null);
 
   const inputLogoRef = useRef<HTMLInputElement>(null);
   const inputCapaRef = useRef<HTMLInputElement>(null);
@@ -81,6 +92,35 @@ export function PainelLoja() {
       })
       .finally(() => setCarregando(false));
   }, []);
+
+  useEffect(() => {
+    api<OnboardingLoja>('/api/admin/onboarding', { autenticado: true })
+      .then((dados) => {
+        setOnboarding(dados);
+        setSegmentoSelecionado(segmentoInicial(dados));
+      })
+      .catch(() => undefined);
+  }, []);
+
+  async function salvarSegmento() {
+    if (!podeSalvarSegmento(segmentoSelecionado, salvandoSegmento)) return;
+    setSalvandoSegmento(true);
+    setMensagemSegmento(null);
+    setErroSegmento(null);
+    try {
+      const atualizado = await api<OnboardingLoja>('/api/admin/onboarding', {
+        method: 'PUT',
+        autenticado: true,
+        body: corpoAtualizarSegmento(segmentoSelecionado),
+      });
+      setOnboarding(atualizado);
+      setMensagemSegmento('Tipo de negócio salvo.');
+    } catch (e) {
+      setErroSegmento(e instanceof Error ? e.message : 'Erro ao salvar o tipo de negócio');
+    } finally {
+      setSalvandoSegmento(false);
+    }
+  }
 
   async function salvar(evento: FormEvent) {
     evento.preventDefault();
@@ -268,403 +308,458 @@ export function PainelLoja() {
   if (!loja) return <Alert tipo="erro">Não foi possível carregar a loja.</Alert>;
 
   return (
-    <form onSubmit={salvar} className="max-w-md">
-      <Card className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold text-gray-800">Configuração da loja</h2>
+    <>
+      <form onSubmit={salvar} className="max-w-md">
+        <Card className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold text-gray-800">Configuração da loja</h2>
 
-        <label className={LABEL}>Nome</label>
-        <Input
-          required
-          value={loja.nome}
-          onChange={(e) => setLoja({ ...loja, nome: e.target.value })}
-        />
+          <label className={LABEL}>Nome</label>
+          <Input
+            required
+            value={loja.nome}
+            onChange={(e) => setLoja({ ...loja, nome: e.target.value })}
+          />
 
-        <label className={LABEL}>Tagline</label>
-        <Input
-          value={loja.tagline ?? ''}
-          onChange={(e) => setLoja({ ...loja, tagline: e.target.value })}
-        />
+          <label className={LABEL}>Tagline</label>
+          <Input
+            value={loja.tagline ?? ''}
+            onChange={(e) => setLoja({ ...loja, tagline: e.target.value })}
+          />
 
-        <label className={LABEL}>Logo</label>
-        <div className="flex items-center gap-3">
-          {loja.logoUrl && (
-            <button type="button" onClick={() => setModalAberto('logo')} className="shrink-0">
-              <img
-                src={loja.logoUrl}
-                alt="Logo da loja"
-                className="h-16 w-16 rounded-full object-cover ring-1 ring-gray-200"
+          <label className={LABEL}>Logo</label>
+          <div className="flex items-center gap-3">
+            {loja.logoUrl && (
+              <button type="button" onClick={() => setModalAberto('logo')} className="shrink-0">
+                <img
+                  src={loja.logoUrl}
+                  alt="Logo da loja"
+                  className="h-16 w-16 rounded-full object-cover ring-1 ring-gray-200"
+                />
+              </button>
+            )}
+            <div className="flex flex-col gap-1">
+              <input
+                ref={inputLogoRef}
+                type="file"
+                accept="image/*"
+                onChange={aoSelecionarLogo}
+                className="text-sm"
               />
-            </button>
-          )}
-          <div className="flex flex-col gap-1">
-            <input
-              ref={inputLogoRef}
-              type="file"
-              accept="image/*"
-              onChange={aoSelecionarLogo}
-              className="text-sm"
-            />
-            {enviandoLogo && <span className="text-xs text-gray-500">Enviando...</span>}
+              {enviandoLogo && <span className="text-xs text-gray-500">Enviando...</span>}
+            </div>
           </div>
-        </div>
-        <p className="-mt-2 text-xs text-gray-500">
-          Aparece no topo do cardápio público e ajuda o cliente a reconhecer a loja.
-        </p>
+          <p className="-mt-2 text-xs text-gray-500">
+            Aparece no topo do cardápio público e ajuda o cliente a reconhecer a loja.
+          </p>
 
-        <label className={LABEL}>Capa</label>
-        <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => loja.capaUrl && setModalAberto('capa')}
-            className="aspect-[3/1] w-full max-w-sm overflow-hidden rounded-lg bg-gray-100 ring-1 ring-gray-200"
-          >
-            {loja.capaUrl ? (
-              <img src={loja.capaUrl} alt="Capa da loja" className="h-full w-full object-cover" />
+          <label className={LABEL}>Capa</label>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => loja.capaUrl && setModalAberto('capa')}
+              className="aspect-[3/1] w-full max-w-sm overflow-hidden rounded-lg bg-gray-100 ring-1 ring-gray-200"
+            >
+              {loja.capaUrl ? (
+                <img src={loja.capaUrl} alt="Capa da loja" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
+                  Sem capa cadastrada
+                </div>
+              )}
+            </button>
+            <div className="flex flex-col gap-1">
+              <input
+                ref={inputCapaRef}
+                type="file"
+                accept="image/*"
+                onChange={aoSelecionarCapa}
+                className="text-sm"
+              />
+              {enviandoCapa && <span className="text-xs text-gray-500">Enviando...</span>}
+            </div>
+            <p className="text-xs text-gray-500">
+              Recomendado: imagem horizontal, mínimo 1200x400px, pra não ficar borrada
+            </p>
+          </div>
+
+          <label className={LABEL}>Endereço</label>
+          <Input
+            value={loja.endereco ?? ''}
+            onChange={(e) => setLoja({ ...loja, endereco: e.target.value })}
+            placeholder="Rua, número, bairro, cidade"
+          />
+          <p className="-mt-2 text-xs text-gray-500">
+            Aparece no rodapé do cardápio — útil pra quem for retirar o pedido no local.
+          </p>
+
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+            <p className={LABEL}>Localização da loja</p>
+            <p className="mt-1 text-xs text-gray-500">
+              Usada como ponto de partida para calcular a taxa de entrega por distância (opcional,
+              na tela Entrega). Estando na loja, clique no botão abaixo — não convertemos o endereço
+              em texto automaticamente.
+            </p>
+
+            {loja.latitude !== null && loja.longitude !== null ? (
+              <p className="mt-2 text-sm text-gray-700">
+                📍 {loja.latitude.toFixed(6)}, {loja.longitude.toFixed(6)}{' '}
+                <a
+                  href={`https://maps.google.com/?q=${loja.latitude},${loja.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary-hover hover:underline"
+                >
+                  ver no mapa
+                </a>
+              </p>
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">
-                Sem capa cadastrada
+              <p className="mt-2 text-sm text-gray-400">Localização ainda não configurada.</p>
+            )}
+
+            <Button
+              type="button"
+              variante="secondary"
+              tamanho="sm"
+              className="mt-2"
+              onClick={usarMinhaLocalizacao}
+              disabled={capturandoLocalizacao}
+            >
+              {capturandoLocalizacao ? 'Obtendo localização...' : '📍 Usar minha localização'}
+            </Button>
+            {erroLocalizacao && <p className="mt-1.5 text-xs text-red-600">{erroLocalizacao}</p>}
+          </div>
+
+          <div className="rounded-lg border border-gray-200 p-3">
+            <p className="text-sm font-semibold text-gray-800">Pix manual</p>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Receba diretamente na sua chave Pix. A confirmação do pagamento é feita manualmente
+              pela loja.
+            </p>
+
+            <label className={`${LABEL} mt-3 block`}>Chave Pix</label>
+            <Input
+              value={loja.chavePix ?? ''}
+              onChange={(e) => setLoja({ ...loja, chavePix: e.target.value })}
+              placeholder="CPF, e-mail, telefone ou chave aleatória"
+            />
+            {erroPix && <p className="mt-1.5 text-xs text-red-600">{erroPix}</p>}
+
+            {loja.chavePix && (
+              <>
+                <label className={`${LABEL} mt-3 block`}>Tipo da chave</label>
+                <Select
+                  value={loja.pixTipoChave ?? ''}
+                  onChange={(e) =>
+                    setLoja({
+                      ...loja,
+                      pixTipoChave: (e.target.value || null) as Loja['pixTipoChave'],
+                    })
+                  }
+                >
+                  <option value="">Selecione...</option>
+                  <option value="cpf">CPF</option>
+                  <option value="cnpj">CNPJ</option>
+                  <option value="telefone">Telefone</option>
+                  <option value="email">E-mail</option>
+                  <option value="aleatoria">Chave aleatória</option>
+                </Select>
+
+                <label className={`${LABEL} mt-3 block`}>Nome do beneficiário/titular</label>
+                <Input
+                  value={loja.pixTitular ?? ''}
+                  onChange={(e) => setLoja({ ...loja, pixTitular: e.target.value })}
+                  placeholder="Nome de quem recebe o Pix"
+                />
+
+                <label className={`${LABEL} mt-3 block`}>Cidade do beneficiário</label>
+                <Input
+                  value={loja.pixCidade ?? ''}
+                  onChange={(e) => setLoja({ ...loja, pixCidade: e.target.value })}
+                  placeholder="Cidade de quem recebe o Pix"
+                />
+
+                <p className="mt-2 text-xs text-gray-500">
+                  {loja.pixTipoChave && loja.pixTitular && loja.pixCidade
+                    ? 'Com esses dados, o cliente vê um QR Code e Pix Copia e Cola prontos na hora de pagar.'
+                    : 'Preencha os 3 campos acima pra o cliente ver um QR Code pronto pra pagar — sem eles, ele só vê a chave em texto (como já era antes).'}
+                </p>
+              </>
+            )}
+
+            <div className="mt-3 flex items-center gap-2 rounded-md bg-gray-50 px-2.5 py-2 text-xs text-gray-400">
+              <span>🔒</span>
+              <span>Pix com confirmação automática — Em breve</span>
+            </div>
+          </div>
+
+          <label className={LABEL}>Telefone WhatsApp (com DDI+DDD, só números)</label>
+          <Input
+            required
+            value={loja.telefoneWhatsapp}
+            onChange={(e) => setLoja({ ...loja, telefoneWhatsapp: e.target.value })}
+            placeholder="5585999999999"
+          />
+
+          <label className={LABEL}>Dias e horários de funcionamento</label>
+          <AgendaHorarios
+            valor={loja.horariosFuncionamento ?? agendaInicialAPartirDoLegado(null, null)}
+            aoMudar={(novo) => setLoja({ ...loja, horariosFuncionamento: novo })}
+          />
+          <p className="-mt-2 text-xs text-gray-500">
+            Define quando o cardápio aparece aberto pros clientes no modo automático. Use "+
+            Adicionar horário" pra mais de um período no mesmo dia (ex: almoço e jantar).
+          </p>
+
+          <label className={LABEL}>Status manual (sobrepõe o horário)</label>
+          <Select
+            value={loja.abertoManual === null ? 'auto' : loja.abertoManual ? 'aberto' : 'fechado'}
+            onChange={(e) =>
+              setLoja({
+                ...loja,
+                abertoManual: e.target.value === 'auto' ? null : e.target.value === 'aberto',
+              })
+            }
+          >
+            <option value="auto">Automático (pelo horário)</option>
+            <option value="aberto">Forçar aberto</option>
+            <option value="fechado">Forçar fechado</option>
+          </Select>
+          <p className="-mt-2 text-xs text-gray-500">
+            No modo automático, a loja abre e fecha sozinha seguindo o horário configurado acima.
+            "Forçar aberto/fechado" ignora o horário até você voltar pro automático.
+          </p>
+
+          <div className="mt-2 border-t pt-4">
+            <h3 className="text-base font-semibold text-gray-800">
+              Pedidos agendados / Encomendas
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Permite que o cliente escolha uma data e horário futuros pra retirada/entrega — útil
+              pra encomendas de festas, aniversários e eventos.
+            </p>
+
+            <label className="mt-3 flex items-center gap-1.5 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={loja.aceitaAgendamento}
+                onChange={(e) => setLoja({ ...loja, aceitaAgendamento: e.target.checked })}
+                className="h-4 w-4 accent-primary"
+              />
+              Aceitar pedidos agendados
+            </label>
+
+            {loja.aceitaAgendamento && (
+              <div className="mt-3 flex items-end gap-2">
+                <div>
+                  <label className={LABEL}>Antecedência mínima</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={antecedenciaValor}
+                    onChange={(e) => aoMudarAntecedenciaValor(Math.max(0, Number(e.target.value)))}
+                    className="w-24"
+                  />
+                </div>
+                <Select
+                  value={antecedenciaUnidade}
+                  onChange={(e) =>
+                    aoMudarAntecedenciaUnidade(e.target.value as 'minutos' | 'horas')
+                  }
+                  className="w-32"
+                >
+                  <option value="minutos">minutos</option>
+                  <option value="horas">horas</option>
+                </Select>
               </div>
             )}
-          </button>
-          <div className="flex flex-col gap-1">
-            <input
-              ref={inputCapaRef}
-              type="file"
-              accept="image/*"
-              onChange={aoSelecionarCapa}
-              className="text-sm"
-            />
-            {enviandoCapa && <span className="text-xs text-gray-500">Enviando...</span>}
           </div>
-          <p className="text-xs text-gray-500">
-            Recomendado: imagem horizontal, mínimo 1200x400px, pra não ficar borrada
-          </p>
-        </div>
 
-        <label className={LABEL}>Endereço</label>
-        <Input
-          value={loja.endereco ?? ''}
-          onChange={(e) => setLoja({ ...loja, endereco: e.target.value })}
-          placeholder="Rua, número, bairro, cidade"
-        />
-        <p className="-mt-2 text-xs text-gray-500">
-          Aparece no rodapé do cardápio — útil pra quem for retirar o pedido no local.
-        </p>
-
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <p className={LABEL}>Localização da loja</p>
-          <p className="mt-1 text-xs text-gray-500">
-            Usada como ponto de partida para calcular a taxa de entrega por distância (opcional, na
-            tela Entrega). Estando na loja, clique no botão abaixo — não convertemos o endereço em
-            texto automaticamente.
-          </p>
-
-          {loja.latitude !== null && loja.longitude !== null ? (
-            <p className="mt-2 text-sm text-gray-700">
-              📍 {loja.latitude.toFixed(6)}, {loja.longitude.toFixed(6)}{' '}
-              <a
-                href={`https://maps.google.com/?q=${loja.latitude},${loja.longitude}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary-hover hover:underline"
-              >
-                ver no mapa
-              </a>
+          <div className="mt-2 border-t pt-4">
+            <h3 className="text-base font-semibold text-gray-800">Identidade visual</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Personalize as cores do seu cardápio para combinar com a identidade da sua marca.
             </p>
-          ) : (
-            <p className="mt-2 text-sm text-gray-400">Localização ainda não configurada.</p>
-          )}
 
-          <Button
-            type="button"
-            variante="secondary"
-            tamanho="sm"
-            className="mt-2"
-            onClick={usarMinhaLocalizacao}
-            disabled={capturandoLocalizacao}
-          >
-            {capturandoLocalizacao ? 'Obtendo localização...' : '📍 Usar minha localização'}
-          </Button>
-          {erroLocalizacao && <p className="mt-1.5 text-xs text-red-600">{erroLocalizacao}</p>}
-        </div>
-
-        <div className="rounded-lg border border-gray-200 p-3">
-          <p className="text-sm font-semibold text-gray-800">Pix manual</p>
-          <p className="mt-0.5 text-xs text-gray-500">
-            Receba diretamente na sua chave Pix. A confirmação do pagamento é feita manualmente pela
-            loja.
-          </p>
-
-          <label className={`${LABEL} mt-3 block`}>Chave Pix</label>
-          <Input
-            value={loja.chavePix ?? ''}
-            onChange={(e) => setLoja({ ...loja, chavePix: e.target.value })}
-            placeholder="CPF, e-mail, telefone ou chave aleatória"
-          />
-          {erroPix && <p className="mt-1.5 text-xs text-red-600">{erroPix}</p>}
-
-          {loja.chavePix && (
-            <>
-              <label className={`${LABEL} mt-3 block`}>Tipo da chave</label>
-              <Select
-                value={loja.pixTipoChave ?? ''}
-                onChange={(e) =>
-                  setLoja({
-                    ...loja,
-                    pixTipoChave: (e.target.value || null) as Loja['pixTipoChave'],
-                  })
-                }
-              >
-                <option value="">Selecione...</option>
-                <option value="cpf">CPF</option>
-                <option value="cnpj">CNPJ</option>
-                <option value="telefone">Telefone</option>
-                <option value="email">E-mail</option>
-                <option value="aleatoria">Chave aleatória</option>
-              </Select>
-
-              <label className={`${LABEL} mt-3 block`}>Nome do beneficiário/titular</label>
-              <Input
-                value={loja.pixTitular ?? ''}
-                onChange={(e) => setLoja({ ...loja, pixTitular: e.target.value })}
-                placeholder="Nome de quem recebe o Pix"
-              />
-
-              <label className={`${LABEL} mt-3 block`}>Cidade do beneficiário</label>
-              <Input
-                value={loja.pixCidade ?? ''}
-                onChange={(e) => setLoja({ ...loja, pixCidade: e.target.value })}
-                placeholder="Cidade de quem recebe o Pix"
-              />
-
-              <p className="mt-2 text-xs text-gray-500">
-                {loja.pixTipoChave && loja.pixTitular && loja.pixCidade
-                  ? 'Com esses dados, o cliente vê um QR Code e Pix Copia e Cola prontos na hora de pagar.'
-                  : 'Preencha os 3 campos acima pra o cliente ver um QR Code pronto pra pagar — sem eles, ele só vê a chave em texto (como já era antes).'}
-              </p>
-            </>
-          )}
-
-          <div className="mt-3 flex items-center gap-2 rounded-md bg-gray-50 px-2.5 py-2 text-xs text-gray-400">
-            <span>🔒</span>
-            <span>Pix com confirmação automática — Em breve</span>
-          </div>
-        </div>
-
-        <label className={LABEL}>Telefone WhatsApp (com DDI+DDD, só números)</label>
-        <Input
-          required
-          value={loja.telefoneWhatsapp}
-          onChange={(e) => setLoja({ ...loja, telefoneWhatsapp: e.target.value })}
-          placeholder="5585999999999"
-        />
-
-        <label className={LABEL}>Dias e horários de funcionamento</label>
-        <AgendaHorarios
-          valor={loja.horariosFuncionamento ?? agendaInicialAPartirDoLegado(null, null)}
-          aoMudar={(novo) => setLoja({ ...loja, horariosFuncionamento: novo })}
-        />
-        <p className="-mt-2 text-xs text-gray-500">
-          Define quando o cardápio aparece aberto pros clientes no modo automático. Use "+ Adicionar
-          horário" pra mais de um período no mesmo dia (ex: almoço e jantar).
-        </p>
-
-        <label className={LABEL}>Status manual (sobrepõe o horário)</label>
-        <Select
-          value={loja.abertoManual === null ? 'auto' : loja.abertoManual ? 'aberto' : 'fechado'}
-          onChange={(e) =>
-            setLoja({
-              ...loja,
-              abertoManual: e.target.value === 'auto' ? null : e.target.value === 'aberto',
-            })
-          }
-        >
-          <option value="auto">Automático (pelo horário)</option>
-          <option value="aberto">Forçar aberto</option>
-          <option value="fechado">Forçar fechado</option>
-        </Select>
-        <p className="-mt-2 text-xs text-gray-500">
-          No modo automático, a loja abre e fecha sozinha seguindo o horário configurado acima.
-          "Forçar aberto/fechado" ignora o horário até você voltar pro automático.
-        </p>
-
-        <div className="mt-2 border-t pt-4">
-          <h3 className="text-base font-semibold text-gray-800">Pedidos agendados / Encomendas</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Permite que o cliente escolha uma data e horário futuros pra retirada/entrega — útil pra
-            encomendas de festas, aniversários e eventos.
-          </p>
-
-          <label className="mt-3 flex items-center gap-1.5 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={loja.aceitaAgendamento}
-              onChange={(e) => setLoja({ ...loja, aceitaAgendamento: e.target.checked })}
-              className="h-4 w-4 accent-primary"
-            />
-            Aceitar pedidos agendados
-          </label>
-
-          {loja.aceitaAgendamento && (
-            <div className="mt-3 flex items-end gap-2">
+            <div className="mt-3 flex flex-col gap-4">
               <div>
-                <label className={LABEL}>Antecedência mínima</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={antecedenciaValor}
-                  onChange={(e) => aoMudarAntecedenciaValor(Math.max(0, Number(e.target.value)))}
-                  className="w-24"
-                />
-              </div>
-              <Select
-                value={antecedenciaUnidade}
-                onChange={(e) => aoMudarAntecedenciaUnidade(e.target.value as 'minutos' | 'horas')}
-                className="w-32"
-              >
-                <option value="minutos">minutos</option>
-                <option value="horas">horas</option>
-              </Select>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-2 border-t pt-4">
-          <h3 className="text-base font-semibold text-gray-800">Identidade visual</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Personalize as cores do seu cardápio para combinar com a identidade da sua marca.
-          </p>
-
-          <div className="mt-3 flex flex-col gap-4">
-            <div>
-              <label className={LABEL}>Cor primária</label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  type="color"
-                  value={corValida(corPrimariaTexto) ? corPrimariaTexto : loja.corPrimaria}
-                  onChange={(e) => aoMudarCorPrimariaPicker(e.target.value)}
-                  aria-label="Selecionar cor primária"
-                  className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-300 p-0.5"
-                />
-                <Input
-                  value={corPrimariaTexto}
-                  onChange={(e) => aoMudarCorPrimariaTexto(e.target.value)}
-                  placeholder="#16A34A"
-                  className={!corValida(corPrimariaTexto) ? 'border-red-400' : ''}
-                />
-              </div>
-              {!corValida(corPrimariaTexto) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Use o formato #RRGGBB, por exemplo #16A34A
+                <label className={LABEL}>Cor primária</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={corValida(corPrimariaTexto) ? corPrimariaTexto : loja.corPrimaria}
+                    onChange={(e) => aoMudarCorPrimariaPicker(e.target.value)}
+                    aria-label="Selecionar cor primária"
+                    className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-300 p-0.5"
+                  />
+                  <Input
+                    value={corPrimariaTexto}
+                    onChange={(e) => aoMudarCorPrimariaTexto(e.target.value)}
+                    placeholder="#16A34A"
+                    className={!corValida(corPrimariaTexto) ? 'border-red-400' : ''}
+                  />
+                </div>
+                {!corValida(corPrimariaTexto) && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Use o formato #RRGGBB, por exemplo #16A34A
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Utilizada nos principais botões, destaques e ações.
                 </p>
-              )}
-              <p className="mt-1 text-xs text-gray-500">
-                Utilizada nos principais botões, destaques e ações.
-              </p>
+              </div>
+
+              <div>
+                <label className={LABEL}>Cor secundária</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={corValida(corSecundariaTexto) ? corSecundariaTexto : loja.corSecundaria}
+                    onChange={(e) => aoMudarCorSecundariaPicker(e.target.value)}
+                    aria-label="Selecionar cor secundária"
+                    className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-300 p-0.5"
+                  />
+                  <Input
+                    value={corSecundariaTexto}
+                    onChange={(e) => aoMudarCorSecundariaTexto(e.target.value)}
+                    placeholder="#15803D"
+                    className={!corValida(corSecundariaTexto) ? 'border-red-400' : ''}
+                  />
+                </div>
+                {!corValida(corSecundariaTexto) && (
+                  <p className="mt-1 text-xs text-red-600">
+                    Use o formato #RRGGBB, por exemplo #15803D
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Utilizada em detalhes complementares e estados de interação.
+                </p>
+              </div>
             </div>
 
-            <div>
-              <label className={LABEL}>Cor secundária</label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  type="color"
-                  value={corValida(corSecundariaTexto) ? corSecundariaTexto : loja.corSecundaria}
-                  onChange={(e) => aoMudarCorSecundariaPicker(e.target.value)}
-                  aria-label="Selecionar cor secundária"
-                  className="h-9 w-9 shrink-0 cursor-pointer rounded-lg border border-gray-300 p-0.5"
-                />
-                <Input
-                  value={corSecundariaTexto}
-                  onChange={(e) => aoMudarCorSecundariaTexto(e.target.value)}
-                  placeholder="#15803D"
-                  className={!corValida(corSecundariaTexto) ? 'border-red-400' : ''}
+            <div className="mt-4">
+              <p className="text-sm font-medium text-gray-700">Paletas prontas</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {PALETAS_PRONTAS.map((paleta) => (
+                  <button
+                    key={paleta.nome}
+                    type="button"
+                    onClick={() => aplicarPaleta(paleta)}
+                    title={paleta.nome}
+                    className="flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
+                  >
+                    <span className="flex h-4 w-4 overflow-hidden rounded-full ring-1 ring-black/10">
+                      <span className="w-1/2" style={{ backgroundColor: paleta.primaria }} />
+                      <span className="w-1/2" style={{ backgroundColor: paleta.secundaria }} />
+                    </span>
+                    {paleta.nome}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-gray-700">Pré-visualização</p>
+              <div className="max-w-xs">
+                <PreviewIdentidadeVisual
+                  nomeLoja={loja.nome}
+                  corPrimaria={loja.corPrimaria}
+                  corSecundaria={loja.corSecundaria}
                 />
               </div>
-              {!corValida(corSecundariaTexto) && (
-                <p className="mt-1 text-xs text-red-600">
-                  Use o formato #RRGGBB, por exemplo #15803D
-                </p>
-              )}
-              <p className="mt-1 text-xs text-gray-500">
-                Utilizada em detalhes complementares e estados de interação.
-              </p>
             </div>
+
+            <Button
+              type="button"
+              variante="secondary"
+              tamanho="sm"
+              onClick={restaurarPadrao}
+              className="mt-3"
+            >
+              Restaurar cores padrão
+            </Button>
           </div>
 
-          <div className="mt-4">
-            <p className="text-sm font-medium text-gray-700">Paletas prontas</p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {PALETAS_PRONTAS.map((paleta) => (
-                <button
-                  key={paleta.nome}
-                  type="button"
-                  onClick={() => aplicarPaleta(paleta)}
-                  title={paleta.nome}
-                  className="flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 transition-colors hover:border-gray-400 hover:bg-gray-50"
-                >
-                  <span className="flex h-4 w-4 overflow-hidden rounded-full ring-1 ring-black/10">
-                    <span className="w-1/2" style={{ backgroundColor: paleta.primaria }} />
-                    <span className="w-1/2" style={{ backgroundColor: paleta.secundaria }} />
-                  </span>
-                  {paleta.nome}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <p className="mb-2 text-sm font-medium text-gray-700">Pré-visualização</p>
-            <div className="max-w-xs">
-              <PreviewIdentidadeVisual
-                nomeLoja={loja.nome}
-                corPrimaria={loja.corPrimaria}
-                corSecundaria={loja.corSecundaria}
-              />
-            </div>
-          </div>
+          {mensagem && <Alert tipo="sucesso">{mensagem}</Alert>}
+          {erro && <Alert tipo="erro">{erro}</Alert>}
 
           <Button
-            type="button"
-            variante="secondary"
-            tamanho="sm"
-            onClick={restaurarPadrao}
-            className="mt-3"
+            type="submit"
+            disabled={salvando || enviandoLogo || enviandoCapa}
+            className="mt-2"
           >
-            Restaurar cores padrão
+            {salvando ? 'Salvando...' : 'Salvar'}
           </Button>
+        </Card>
+
+        {modalAberto === 'logo' && loja.logoUrl && (
+          <ModalImagem
+            titulo="Logo da loja"
+            src={loja.logoUrl}
+            aoFechar={() => setModalAberto(null)}
+            aoAlterar={() => {
+              setModalAberto(null);
+              inputLogoRef.current?.click();
+            }}
+          />
+        )}
+
+        {modalAberto === 'capa' && loja.capaUrl && (
+          <ModalImagem
+            titulo="Capa da loja"
+            src={loja.capaUrl}
+            aoFechar={() => setModalAberto(null)}
+            aoAlterar={() => {
+              setModalAberto(null);
+              inputCapaRef.current?.click();
+            }}
+          />
+        )}
+      </form>
+
+      {/* Tipo de negócio mora em OnboardingLoja, não em Loja — por isso é uma
+          ação de salvar independente do formulário acima, direto no endpoint
+          que o wizard de implantação já usa. Nunca obrigatório: uma loja sem
+          segmento definido continua funcionando normalmente em tudo, só não
+          ganha as sugestões de grupos de opções por nicho. */}
+      <Card className="mt-6 flex max-w-md flex-col gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800">Tipo de negócio</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            {onboarding?.segmentoNegocio
+              ? 'Usado para sugerir grupos de opções prontos pro seu tipo de negócio ao cadastrar um produto.'
+              : 'Defina o tipo de negócio para receber sugestões de grupos de opções prontas para sua loja.'}
+          </p>
         </div>
 
-        {mensagem && <Alert tipo="sucesso">{mensagem}</Alert>}
-        {erro && <Alert tipo="erro">{erro}</Alert>}
+        {onboarding ? (
+          <Select
+            value={segmentoSelecionado}
+            onChange={(e) => setSegmentoSelecionado(e.target.value)}
+          >
+            <option value="">Não definido</option>
+            {(onboarding.segmentos ?? []).map((segmento) => (
+              <option key={segmento.chave} value={segmento.chave}>
+                {segmento.rotulo}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          <p className="text-sm text-gray-400">Carregando...</p>
+        )}
 
-        <Button type="submit" disabled={salvando || enviandoLogo || enviandoCapa} className="mt-2">
-          {salvando ? 'Salvando...' : 'Salvar'}
+        {mensagemSegmento && <Alert tipo="sucesso">{mensagemSegmento}</Alert>}
+        {erroSegmento && <Alert tipo="erro">{erroSegmento}</Alert>}
+
+        <Button
+          type="button"
+          tamanho="sm"
+          onClick={salvarSegmento}
+          disabled={!podeSalvarSegmento(segmentoSelecionado, salvandoSegmento)}
+          className="self-start"
+        >
+          {salvandoSegmento ? 'Salvando...' : 'Salvar tipo de negócio'}
         </Button>
       </Card>
-
-      {modalAberto === 'logo' && loja.logoUrl && (
-        <ModalImagem
-          titulo="Logo da loja"
-          src={loja.logoUrl}
-          aoFechar={() => setModalAberto(null)}
-          aoAlterar={() => {
-            setModalAberto(null);
-            inputLogoRef.current?.click();
-          }}
-        />
-      )}
-
-      {modalAberto === 'capa' && loja.capaUrl && (
-        <ModalImagem
-          titulo="Capa da loja"
-          src={loja.capaUrl}
-          aoFechar={() => setModalAberto(null)}
-          aoAlterar={() => {
-            setModalAberto(null);
-            inputCapaRef.current?.click();
-          }}
-        />
-      )}
-    </form>
+    </>
   );
 }
