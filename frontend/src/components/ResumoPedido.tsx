@@ -15,6 +15,7 @@ import {
   telefoneValido,
   UFS_BRASIL,
 } from '../lib/endereco';
+import { chaveItemCarrinho } from '../lib/produto';
 import { BairroEntrega, FormaPagamento, ItemCarrinho, TipoPedido } from '../types';
 import { Button } from './ui/Button';
 import { EmptyState } from './ui/EmptyState';
@@ -217,7 +218,12 @@ export function ResumoPedido({
             <>
               <ul className="mb-3 max-h-56 overflow-y-auto text-sm">
                 {itens.map((item) => {
-                  const chave = `${item.produtoId}-${item.opcao ?? ''}-${item.observacao ?? ''}`;
+                  const chave = chaveItemCarrinho(
+                    item.produtoId,
+                    item.opcao,
+                    item.gruposSelecionados,
+                    item.observacao,
+                  );
                   return (
                     <li
                       key={chave}
@@ -227,6 +233,16 @@ export function ResumoPedido({
                         <span>
                           {item.quantidade}x {item.nome}
                           {item.opcao ? ` (${item.opcao})` : ''}
+                          {item.gruposSelecionados.length > 0 && (
+                            <span className="block text-xs text-gray-500">
+                              {item.gruposSelecionados
+                                .map(
+                                  (grupo) =>
+                                    `${grupo.grupoNome}: ${grupo.opcoes.map((o) => o.nome).join(', ')}`,
+                                )
+                                .join(' · ')}
+                            </span>
+                          )}
                           {item.observacao && (
                             <span className="block text-xs italic text-gray-400">
                               Obs: {item.observacao}

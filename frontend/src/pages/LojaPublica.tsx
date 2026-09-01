@@ -12,14 +12,47 @@ import { api } from '../lib/api';
 import { montarVariaveisTema } from '../lib/cor';
 import { distanciaAproximadaMetros, resolverTaxaPorDistancia } from '../lib/distancia';
 import { cepValido, EnderecoEntrega, telefoneValido } from '../lib/endereco';
+import { chaveItemCarrinho } from '../lib/produto';
 import {
   FormaPagamento,
+  GrupoPedidoRegistrado,
+  GrupoSelecionadoCarrinho,
   ItemCarrinho,
   LojaPublica as LojaPublicaTipo,
   PedidoAnterior,
   Produto,
   TipoPedido,
 } from '../types';
+
+/**
+ * "Pedir de novo" reconstrói o carrinho a partir de um pedido antigo, que só
+ * guarda uma cópia por NOME das escolhas de grupo (nunca o id — ver
+ * ItemPedidoRegistrado). Pra reenviar o pedido de novo é preciso um opcaoId
+ * real e atual, então aqui a gente casa por nome com o cardápio atual do
+ * produto: grupo/opção renomeados ou removidos desde então simplesmente não
+ * voltam a ser selecionados (nunca inventa nem trava o fluxo).
+ */
+function reconciliarGruposPorNome(
+  produtoAtual: Produto | undefined,
+  gruposHistoricos: GrupoPedidoRegistrado[] | undefined,
+): GrupoSelecionadoCarrinho[] {
+  if (!produtoAtual || !gruposHistoricos) return [];
+  const resultado: GrupoSelecionadoCarrinho[] = [];
+  for (const grupoHistorico of gruposHistoricos) {
+    const grupoAtual = produtoAtual.gruposOpcoes?.find(
+      (g) => g.ativo && g.nome === grupoHistorico.nome,
+    );
+    if (!grupoAtual) continue;
+    const opcoes = grupoHistorico.opcoes
+      .map((opHist) => grupoAtual.opcoes.find((op) => op.ativo && op.nome === opHist.nome))
+      .filter((op): op is NonNullable<typeof op> => Boolean(op))
+      .map((op) => ({ id: op.id, nome: op.nome, precoAdicional: op.precoAdicional }));
+    if (opcoes.length > 0) {
+      resultado.push({ grupoId: grupoAtual.id, grupoNome: grupoAtual.nome, opcoes });
+    }
+  }
+  return resultado;
+}
 
 const ENDERECO_VAZIO: EnderecoEntrega = {
   cep: '',
@@ -230,20 +263,26 @@ export function LojaPublica() {
   function adicionarAoCarrinho(
     produto: Produto,
     opcao: string | null,
+    gruposSelecionados: GrupoSelecionadoCarrinho[],
     quantidade: number,
     observacao: string | null,
   ) {
-    // Observação entra na chave: dois lançamentos do mesmo produto+opção com
-    // observações diferentes ("sem cebola" vs "sem sal") não podem se fundir
-    // num único item silenciosamente perdendo uma das observações.
-    const chave = `${produto.id}-${opcao ?? ''}-${observacao ?? ''}`;
+    // Observação e grupos entram na chave: duas configurações diferentes do
+    // mesmo produto (opção/grupos/observação) não podem se fundir num único
+    // item silenciosamente perdendo uma das escolhas.
+    const chave = chaveItemCarrinho(produto.id, opcao, gruposSelecionados, observacao);
+    const adicionalPorUnidade = gruposSelecionados.reduce(
+      (soma, grupo) => soma + grupo.opcoes.reduce((s, op) => s + op.precoAdicional, 0),
+      0,
+    );
     setCarrinho((atual) => ({
       ...atual,
       [chave]: {
         produtoId: produto.id,
         nome: produto.nome,
-        preco: produto.preco,
+        preco: produto.preco + adicionalPorUnidade,
         opcao,
+        gruposSelecionados,
         quantidade: (atual[chave]?.quantidade ?? 0) + quantidade,
         observacao,
       },
@@ -253,7 +292,7 @@ export function LojaPublica() {
   // Produto simples: "+" adiciona 1 unidade direto, sem modal. Toques
   // repetidos incrementam a quantidade (mesma chave, mesmo merge de sempre).
   function adicionarProdutoSimples(produto: Produto) {
-    adicionarAoCarrinho(produto, null, 1, null);
+    adicionarAoCarrinho(produto, null, [], 1, null);
   }
 
   function removerItem(chave: string) {
@@ -280,18 +319,24 @@ export function LojaPublica() {
     chaveAntiga: string,
     produto: Produto,
     opcao: string | null,
+    gruposSelecionados: GrupoSelecionadoCarrinho[],
     quantidade: number,
     observacao: string | null,
   ) {
+    const adicionalPorUnidade = gruposSelecionados.reduce(
+      (soma, grupo) => soma + grupo.opcoes.reduce((s, op) => s + op.precoAdicional, 0),
+      0,
+    );
     setCarrinho((atual) => {
       const copia = { ...atual };
       delete copia[chaveAntiga];
-      const novaChave = `${produto.id}-${opcao ?? ''}-${observacao ?? ''}`;
+      const novaChave = chaveItemCarrinho(produto.id, opcao, gruposSelecionados, observacao);
       copia[novaChave] = {
         produtoId: produto.id,
         nome: produto.nome,
-        preco: produto.preco,
+        preco: produto.preco + adicionalPorUnidade,
         opcao,
+        gruposSelecionados,
         quantidade: (copia[novaChave]?.quantidade ?? 0) + quantidade,
         observacao,
       };
@@ -303,11 +348,28 @@ export function LojaPublica() {
     if (!pedidoAnterior) return;
     const novoCarrinho: Record<string, ItemCarrinho> = {};
     for (const item of pedidoAnterior.itens) {
-      novoCarrinho[`${item.produtoId}-${item.opcao ?? ''}-${item.observacao ?? ''}`] = {
+      // preco continua vindo do pedido antigo (precoUnitario histórico, já
+      // com os adicionais daquela vez embutidos) só pra exibição no
+      // carrinho — o backend sempre recalcula o valor real a partir do
+      // catálogo atual na hora de finalizar. gruposSelecionados, por outro
+      // lado, precisa de ids reais e atuais pra reenviar o pedido — daí a
+      // reconciliação por nome.
+      const gruposSelecionados = reconciliarGruposPorNome(
+        produtosPorId.get(item.produtoId),
+        item.grupos,
+      );
+      const chave = chaveItemCarrinho(
+        item.produtoId,
+        item.opcao,
+        gruposSelecionados,
+        item.observacao,
+      );
+      novoCarrinho[chave] = {
         produtoId: item.produtoId,
         nome: item.nome,
         preco: item.precoUnitario,
         opcao: item.opcao,
+        gruposSelecionados,
         quantidade: item.quantidade,
         observacao: item.observacao,
       };
@@ -480,6 +542,10 @@ export function LojaPublica() {
           itens: itensCarrinho.map((item) => ({
             produtoId: item.produtoId,
             opcao: item.opcao,
+            gruposSelecionados: item.gruposSelecionados.map((grupo) => ({
+              grupoId: grupo.grupoId,
+              opcaoIds: grupo.opcoes.map((op) => op.id),
+            })),
             quantidade: item.quantidade,
             observacao: item.observacao,
           })),
@@ -668,9 +734,6 @@ export function LojaPublica() {
                       aoAbrirModal={setProdutoModalAberto}
                     />
                   ))}
-                  {categoria.produtos.length === 0 && (
-                    <p className="text-sm text-gray-500">Nenhum produto nessa categoria.</p>
-                  )}
                 </div>
               </div>
             ))}
@@ -757,11 +820,19 @@ export function LojaPublica() {
         <ModalProduto
           produto={itemEditando.produto}
           aoFechar={() => setItemEditando(null)}
-          aoAdicionar={(produto, opcao, quantidade, observacao) =>
-            salvarEdicaoItem(itemEditando.chave, produto, opcao, quantidade, observacao)
+          aoAdicionar={(produto, opcao, gruposSelecionados, quantidade, observacao) =>
+            salvarEdicaoItem(
+              itemEditando.chave,
+              produto,
+              opcao,
+              gruposSelecionados,
+              quantidade,
+              observacao,
+            )
           }
           valoresIniciais={{
             opcao: carrinho[itemEditando.chave]?.opcao ?? null,
+            gruposSelecionados: carrinho[itemEditando.chave]?.gruposSelecionados ?? [],
             quantidade: carrinho[itemEditando.chave]?.quantidade ?? 1,
             observacao: carrinho[itemEditando.chave]?.observacao ?? null,
           }}

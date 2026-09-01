@@ -108,12 +108,21 @@ export function AcompanharPedido() {
 
         <ul className="mt-6 flex flex-col gap-1 border-t pt-4 text-sm text-gray-600">
           {pedido.itens.map((item, i) => (
-            <li key={i} className="flex justify-between">
+            <li key={i} className="flex justify-between gap-2">
               <span>
                 {item.quantidade}x {item.nome}
                 {item.opcao ? ` (${item.opcao})` : ''}
+                {item.grupos && item.grupos.length > 0 && (
+                  <span className="block text-xs text-gray-400">
+                    {item.grupos
+                      .map(
+                        (grupo) => `${grupo.nome}: ${grupo.opcoes.map((op) => op.nome).join(', ')}`,
+                      )
+                      .join(' · ')}
+                  </span>
+                )}
               </span>
-              <span>R$ {item.subtotal.toFixed(2)}</span>
+              <span className="shrink-0">R$ {item.subtotal.toFixed(2)}</span>
             </li>
           ))}
         </ul>

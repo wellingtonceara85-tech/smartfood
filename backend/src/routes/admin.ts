@@ -1,4 +1,12 @@
-import { BairroEntrega, FaixaEntregaDistancia, Pedido, Prisma, Produto } from '@prisma/client';
+import {
+  BairroEntrega,
+  FaixaEntregaDistancia,
+  GrupoOpcoes,
+  OpcaoGrupo,
+  Pedido,
+  Prisma,
+  Produto,
+} from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { lojaIdDoUsuario, requireAuth, requirePapel } from '../middleware/auth';
@@ -10,6 +18,8 @@ import {
   HorariosFuncionamento,
   validarHorariosFuncionamento,
 } from '../utils/horario';
+import { grupoParaCriarSemProdutoId, gruposParaCriarSemProdutoId } from '../utils/gruposOpcoes';
+import { modelosGruposParaSegmento } from '../utils/modelosGrupoOpcoes';
 import { calcularNovaOrdem, proximaOrdem } from '../utils/ordenacao';
 import { montarPendenciasLoja } from '../utils/pendenciasLoja';
 import { MENSAGEM_ERRO_CHAVE_PIX, validarChavePix } from '../utils/pixPayload';
@@ -22,8 +32,18 @@ const corHexSchema = z
   .regex(HEX_REGEX, 'Cor inválida — use o formato #RRGGBB')
   .transform(normalizarCor);
 
-function serializarProduto(produto: Produto) {
+function serializarProduto(produto: Produto & { _count?: { gruposOpcoes: number } }) {
   return { ...produto, preco: Number(produto.preco) };
+}
+
+function serializarGrupoOpcoes(grupo: GrupoOpcoes & { opcoes: OpcaoGrupo[] }) {
+  return {
+    ...grupo,
+    opcoes: grupo.opcoes.map((opcao) => ({
+      ...opcao,
+      precoAdicional: Number(opcao.precoAdicional),
+    })),
+  };
 }
 
 function serializarBairro(bairro: BairroEntrega) {
@@ -357,6 +377,7 @@ adminRouter.get('/produtos', async (req, res) => {
   const produtos = await prisma.produto.findMany({
     where: { lojaId },
     orderBy: [{ categoriaId: 'asc' }, { ordem: 'asc' }],
+    include: { _count: { select: { gruposOpcoes: true } } },
   });
   res.json(produtos.map(serializarProduto));
 });
@@ -371,11 +392,46 @@ const produtoSchema = z.object({
   opcoes: z.array(z.string()).nullable().optional(),
 });
 
+// Definidos aqui (e não junto da seção "Grupos de opções" mais abaixo, onde
+// moram conceitualmente) porque produtoComGruposSchema — usado só por POST
+// /produtos — precisa deles antes de ser declarado.
+const opcaoGrupoSchema = z.object({
+  nome: z.string().min(1),
+  precoAdicional: z.number().nonnegative().default(0),
+  ativo: z.boolean().optional().default(true),
+  ordem: z.number().int().optional(),
+});
+
+const grupoOpcoesSchema = z
+  .object({
+    nome: z.string().min(1),
+    minEscolhas: z.number().int().min(0).default(0),
+    maxEscolhas: z.number().int().min(1).default(1),
+    obrigatorio: z.boolean().optional().default(false),
+    ativo: z.boolean().optional().default(true),
+    ordem: z.number().int().optional(),
+    opcoes: z.array(opcaoGrupoSchema).default([]),
+  })
+  .refine((grupo) => grupo.maxEscolhas >= grupo.minEscolhas, {
+    message: 'A escolha máxima precisa ser maior ou igual à escolha mínima',
+    path: ['maxEscolhas'],
+  });
+
+// Só para criação: permite o lojista já configurar grupos de opções durante
+// o cadastro do produto (ver Missão "Grupos de opções — UX de criação"),
+// sem precisar salvar o produto, sair e editar de novo. Deliberadamente
+// separado de produtoSchema — PUT /produtos/:id continua sem saber nada de
+// `grupos` (edição de grupos de produto já existente segue exclusivamente
+// pelos endpoints /produtos/:id/grupos-opcoes, sem mudança de comportamento).
+const produtoComGruposSchema = produtoSchema.extend({
+  grupos: z.array(grupoOpcoesSchema).optional().default([]),
+});
+
 adminRouter.post('/produtos', async (req, res) => {
   const lojaId = lojaIdOuErro(req, res);
   if (!lojaId) return;
 
-  const parsed = produtoSchema.safeParse(req.body);
+  const parsed = produtoComGruposSchema.safeParse(req.body);
   if (!parsed.success)
     return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
 
@@ -389,18 +445,27 @@ adminRouter.post('/produtos', async (req, res) => {
     select: { ordem: true },
   });
 
+  const { grupos, ...dadosProduto } = parsed.data;
+
   const produto = await prisma.produto.create({
     data: {
       lojaId,
-      categoriaId: parsed.data.categoriaId,
-      nome: parsed.data.nome,
-      descricao: parsed.data.descricao ?? null,
-      preco: parsed.data.preco,
-      fotoUrl: parsed.data.fotoUrl ?? null,
-      disponivel: parsed.data.disponivel ?? true,
-      opcoes: parsed.data.opcoes ?? Prisma.JsonNull,
+      categoriaId: dadosProduto.categoriaId,
+      nome: dadosProduto.nome,
+      descricao: dadosProduto.descricao ?? null,
+      preco: dadosProduto.preco,
+      fotoUrl: dadosProduto.fotoUrl ?? null,
+      disponivel: dadosProduto.disponivel ?? true,
+      opcoes: dadosProduto.opcoes ?? Prisma.JsonNull,
       ordem: proximaOrdem(produtosDaCategoria),
+      // Numa escrita só (transação implícita do Prisma pra nested writes) —
+      // nunca existe um produto "criado mas sem os grupos que o lojista
+      // configurou" por causa de uma falha no meio do caminho.
+      ...(grupos.length > 0
+        ? { gruposOpcoes: { create: gruposParaCriarSemProdutoId(grupos) } }
+        : {}),
     },
+    include: { _count: { select: { gruposOpcoes: true } } },
   });
   res.status(201).json(serializarProduto(produto));
 });
@@ -501,7 +566,10 @@ adminRouter.post('/produtos/:id/duplicar', async (req, res) => {
   const lojaId = lojaIdOuErro(req, res);
   if (!lojaId) return;
 
-  const original = await prisma.produto.findFirst({ where: { id: req.params.id, lojaId } });
+  const original = await prisma.produto.findFirst({
+    where: { id: req.params.id, lojaId },
+    include: { gruposOpcoes: { orderBy: { ordem: 'asc' }, include: { opcoes: true } } },
+  });
   if (!original) return res.status(404).json({ erro: 'Produto não encontrado' });
 
   const produtosDaCategoria = await prisma.produto.findMany({
@@ -510,7 +578,9 @@ adminRouter.post('/produtos/:id/duplicar', async (req, res) => {
   });
 
   // Copia a URL da foto direto (mesmo arquivo no Storage) — sem re-upload,
-  // o produto novo só passa a apontar pra referência que já existe.
+  // o produto novo só passa a apontar pra referência que já existe. Grupos e
+  // opções também são copiados por valor (nunca vinculados ao produto
+  // original): editar a cópia depois nunca afeta o produto original.
   const copia = await prisma.produto.create({
     data: {
       lojaId,
@@ -522,16 +592,42 @@ adminRouter.post('/produtos/:id/duplicar', async (req, res) => {
       disponivel: original.disponivel,
       opcoes: original.opcoes ?? Prisma.JsonNull,
       ordem: proximaOrdem(produtosDaCategoria),
+      gruposOpcoes: {
+        create: original.gruposOpcoes.map((grupo) => ({
+          nome: grupo.nome,
+          minEscolhas: grupo.minEscolhas,
+          maxEscolhas: grupo.maxEscolhas,
+          obrigatorio: grupo.obrigatorio,
+          ativo: grupo.ativo,
+          ordem: grupo.ordem,
+          opcoes: {
+            create: grupo.opcoes.map((opcao) => ({
+              nome: opcao.nome,
+              precoAdicional: opcao.precoAdicional,
+              ativo: opcao.ativo,
+              ordem: opcao.ordem,
+            })),
+          },
+        })),
+      },
     },
   });
   res.status(201).json(serializarProduto(copia));
+});
+
+// `grupos` opcional e SEM default de propósito (diferente de produtoComGruposSchema):
+// omitido = não mexe nos grupos já salvos; presente (mesmo `[]`) = substitui a
+// árvore inteira. Ver "Grupos de opções" mais abaixo pro mesmo padrão de
+// substituição total usado por PUT /produtos/:id/grupos-opcoes.
+const produtoAtualizacaoSchema = produtoSchema.partial().extend({
+  grupos: z.array(grupoOpcoesSchema).optional(),
 });
 
 adminRouter.put('/produtos/:id', async (req, res) => {
   const lojaId = lojaIdOuErro(req, res);
   if (!lojaId) return;
 
-  const parsed = produtoSchema.partial().safeParse(req.body);
+  const parsed = produtoAtualizacaoSchema.safeParse(req.body);
   if (!parsed.success)
     return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
 
@@ -545,13 +641,38 @@ adminRouter.put('/produtos/:id', async (req, res) => {
     if (!categoria) return res.status(400).json({ erro: 'Categoria inválida para esta loja' });
   }
 
-  const { opcoes, ...resto } = parsed.data;
-  const produto = await prisma.produto.update({
+  const { opcoes, grupos, ...resto } = parsed.data;
+
+  // Produto e grupos são atualizados na mesma transação — um lojista que
+  // edita nome/preço e grupos de opções ao mesmo tempo (ex: pelo botão
+  // "Salvar" principal da tela de edição, que manda tudo junto) nunca corre
+  // o risco de salvar uma metade e perder a outra silenciosamente. Isso
+  // também é o que corrige o bug relatado: antes, só POST /produtos aceitava
+  // `grupos` — o "Salvar" da edição nunca enviava as mudanças feitas nos
+  // grupos, então reabrir o produto sempre mostrava os valores antigos.
+  await prisma.$transaction([
+    prisma.produto.update({
+      where: { id: existente.id },
+      data: {
+        ...resto,
+        ...(opcoes !== undefined ? { opcoes: opcoes ?? Prisma.JsonNull } : {}),
+      },
+    }),
+    ...(grupos !== undefined
+      ? [
+          prisma.grupoOpcoes.deleteMany({ where: { produtoId: existente.id } }),
+          ...grupos.map((grupo, indiceGrupo) =>
+            prisma.grupoOpcoes.create({
+              data: { produtoId: existente.id, ...grupoParaCriarSemProdutoId(grupo, indiceGrupo) },
+            }),
+          ),
+        ]
+      : []),
+  ]);
+
+  const produto = await prisma.produto.findUniqueOrThrow({
     where: { id: existente.id },
-    data: {
-      ...resto,
-      ...(opcoes !== undefined ? { opcoes: opcoes ?? Prisma.JsonNull } : {}),
-    },
+    include: { _count: { select: { gruposOpcoes: true } } },
   });
   res.json(serializarProduto(produto));
 });
@@ -582,6 +703,147 @@ adminRouter.delete('/produtos/:id', async (req, res) => {
 
   await prisma.produto.delete({ where: { id: existente.id } });
   res.status(204).send();
+});
+
+// --- Grupos de opções ---
+//
+// Cada grupo pertence a um único produto (nunca compartilhado por
+// referência) — "reutilizar em outro produto" é sempre uma cópia explícita
+// (ver /copiar abaixo), no mesmo espírito de "Duplicar produto".
+//
+// opcaoGrupoSchema/grupoOpcoesSchema ficam definidos lá em cima (antes de
+// produtoSchema) porque POST /produtos também os usa, pra criar produto +
+// grupos numa única escrita atômica quando o lojista já configura grupos
+// durante o cadastro — ver produtoComGruposSchema.
+
+const salvarGruposOpcoesSchema = z.object({
+  grupos: z.array(grupoOpcoesSchema),
+});
+
+adminRouter.get('/produtos/:produtoId/grupos-opcoes', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const produto = await prisma.produto.findFirst({
+    where: { id: req.params.produtoId, lojaId },
+  });
+  if (!produto) return res.status(404).json({ erro: 'Produto não encontrado' });
+
+  const grupos = await prisma.grupoOpcoes.findMany({
+    where: { produtoId: produto.id },
+    orderBy: { ordem: 'asc' },
+    include: { opcoes: { orderBy: { ordem: 'asc' } } },
+  });
+  res.json(grupos.map(serializarGrupoOpcoes));
+});
+
+// Substitui a árvore inteira de grupos+opções do produto de uma vez (apaga e
+// recria) — mais simples que fazer diff campo a campo, e seguro porque nada
+// fora daqui referencia o id de um GrupoOpcoes/OpcaoGrupo específico: um
+// pedido já feito guarda uma cópia (nome + preço) do que foi escolhido, nunca
+// o id (ver utils/gruposOpcoes.ts), então apagar e recriar nunca invalida um
+// pedido existente.
+adminRouter.put('/produtos/:produtoId/grupos-opcoes', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const produto = await prisma.produto.findFirst({
+    where: { id: req.params.produtoId, lojaId },
+  });
+  if (!produto) return res.status(404).json({ erro: 'Produto não encontrado' });
+
+  const parsed = salvarGruposOpcoesSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  await prisma.$transaction([
+    prisma.grupoOpcoes.deleteMany({ where: { produtoId: produto.id } }),
+    ...parsed.data.grupos.map((grupo, indice) =>
+      prisma.grupoOpcoes.create({
+        data: { produtoId: produto.id, ...grupoParaCriarSemProdutoId(grupo, indice) },
+      }),
+    ),
+  ]);
+
+  const grupos = await prisma.grupoOpcoes.findMany({
+    where: { produtoId: produto.id },
+    orderBy: { ordem: 'asc' },
+    include: { opcoes: { orderBy: { ordem: 'asc' } } },
+  });
+  res.json(grupos.map(serializarGrupoOpcoes));
+});
+
+const copiarGrupoSchema = z.object({
+  produtoDestinoId: z.string().uuid(),
+});
+
+// Copia um grupo (com as opções dele) pra outro produto da mesma loja — evita
+// o lojista recadastrar "Proteínas"/"Acompanhamentos" do zero em cada
+// produto. Sempre uma cópia independente: editar depois num dos dois lados
+// nunca afeta o outro.
+adminRouter.post('/produtos/:produtoId/grupos-opcoes/:grupoId/copiar', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const parsed = copiarGrupoSchema.safeParse(req.body);
+  if (!parsed.success)
+    return res.status(400).json({ erro: 'Dados inválidos', detalhes: parsed.error.flatten() });
+
+  const grupoOrigem = await prisma.grupoOpcoes.findFirst({
+    where: { id: req.params.grupoId, produtoId: req.params.produtoId, produto: { lojaId } },
+    include: { opcoes: true },
+  });
+  if (!grupoOrigem) return res.status(404).json({ erro: 'Grupo não encontrado' });
+
+  const produtoDestino = await prisma.produto.findFirst({
+    where: { id: parsed.data.produtoDestinoId, lojaId },
+  });
+  if (!produtoDestino)
+    return res.status(400).json({ erro: 'Produto de destino inválido para esta loja' });
+
+  const gruposDestino = await prisma.grupoOpcoes.findMany({
+    where: { produtoId: produtoDestino.id },
+    select: { ordem: true },
+  });
+
+  const copia = await prisma.grupoOpcoes.create({
+    data: {
+      produtoId: produtoDestino.id,
+      nome: grupoOrigem.nome,
+      minEscolhas: grupoOrigem.minEscolhas,
+      maxEscolhas: grupoOrigem.maxEscolhas,
+      obrigatorio: grupoOrigem.obrigatorio,
+      ativo: grupoOrigem.ativo,
+      ordem: proximaOrdem(gruposDestino),
+      opcoes: {
+        create: grupoOrigem.opcoes.map((opcao) => ({
+          nome: opcao.nome,
+          precoAdicional: opcao.precoAdicional,
+          ativo: opcao.ativo,
+          ordem: opcao.ordem,
+        })),
+      },
+    },
+    include: { opcoes: { orderBy: { ordem: 'asc' } } },
+  });
+  res.status(201).json(serializarGrupoOpcoes(copia));
+});
+
+// Sugestões de grupos por segmento da loja (mesmo padrão de
+// sugerirCategoriasPorSegmento) — o lojista aplica com um clique, edita ou
+// ignora; nada aqui grava nada sozinho no banco.
+adminRouter.get('/modelos-grupos-opcoes', async (req, res) => {
+  const lojaId = lojaIdOuErro(req, res);
+  if (!lojaId) return;
+
+  const onboarding = await prisma.onboardingLoja.findUnique({
+    where: { lojaId },
+    select: { segmentoNegocio: true },
+  });
+  const modelos = onboarding?.segmentoNegocio
+    ? modelosGruposParaSegmento(onboarding.segmentoNegocio)
+    : [];
+  res.json({ segmento: onboarding?.segmentoNegocio ?? null, modelos });
 });
 
 // --- Bairros de entrega ---

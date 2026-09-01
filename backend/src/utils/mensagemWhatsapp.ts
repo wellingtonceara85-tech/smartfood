@@ -1,6 +1,17 @@
+interface OpcaoGrupoMensagem {
+  nome: string;
+  precoAdicional: number;
+}
+
+interface GrupoMensagem {
+  nome: string;
+  opcoes: OpcaoGrupoMensagem[];
+}
+
 interface ItemMensagem {
   nome: string;
   opcao?: string | null;
+  grupos?: GrupoMensagem[] | null;
   quantidade: number;
   subtotal: number;
   observacao?: string | null;
@@ -45,6 +56,19 @@ interface PedidoMensagem {
 const moeda = (valor: number) => `R$ ${valor.toFixed(2).replace('.', ',')}`;
 const moedaOuGratis = (valor: number) => (valor === 0 ? 'Grátis' : moeda(valor));
 
+/**
+ * Nome do grupo seguido do separador certo antes das escolhas — ": " no caso
+ * normal, mas nunca gruda um ":" em cima de uma pontuação que o próprio
+ * lojista já colocou no nome do grupo (ex: "Deseja retirar algum
+ * ingrediente?" viraria "...ingrediente?:"). Regra genérica por pontuação
+ * final, não por nome de grupo específico — vale pra "?", "!", "." etc.
+ */
+function rotuloGrupoComSeparador(nomeGrupo: string): string {
+  const nome = nomeGrupo.trim();
+  const jaTerminaComPontuacao = /[?!.:;,]$/.test(nome);
+  return jaTerminaComPontuacao ? `${nome} ` : `${nome}: `;
+}
+
 const LABEL_PAGAMENTO: Record<string, string> = {
   dinheiro: 'Dinheiro',
   cartao: 'Cartão',
@@ -83,6 +107,19 @@ export function montarMensagemPedido(
     const descricaoOpcao = opcao ? ` (${opcao})` : '';
     const destaque = `${item.quantidade}x ${nome}${descricaoOpcao}`;
     linhas.push(`*${destaque}* - ${moeda(item.subtotal)}`);
+    // Grupos de opções ficam estruturados (nome do grupo + escolhas), nunca
+    // amassados numa única observação — ver "Pedido organizado" no relatório
+    // da missão de Grupos de Opções.
+    if (item.grupos && item.grupos.length > 0) {
+      for (const grupo of item.grupos) {
+        const opcoesTexto = grupo.opcoes
+          .map((op) =>
+            op.precoAdicional > 0 ? `${op.nome} (+${moeda(op.precoAdicional)})` : op.nome,
+          )
+          .join(', ');
+        linhas.push(`  ${rotuloGrupoComSeparador(grupo.nome)}${opcoesTexto}`);
+      }
+    }
     if (item.observacao) {
       linhas.push(`  Obs: ${item.observacao}`);
     }

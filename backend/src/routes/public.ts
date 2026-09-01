@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -9,8 +10,14 @@ import {
   formatarDataHoraLocal,
   validarAgendamento,
 } from '../utils/agendamento';
+import { montarCategoriasPublicas } from '../utils/cardapioPublico';
 import { conviteValido, hashToken } from '../utils/convite';
 import { enviarEmailRecuperacaoSenha } from '../utils/emailRecuperacaoSenha';
+import {
+  GrupoSelecionadoEntrada,
+  ItemPedidoResolvido,
+  resolverItemPedido,
+} from '../utils/gruposOpcoes';
 import {
   dataExpiracaoRecuperacao,
   gerarTokenRecuperacao,
@@ -37,6 +44,7 @@ export const publicRouter = Router();
 interface ItemPedidoSalvo {
   nome: string;
   opcao: string | null;
+  grupos?: { nome: string; opcoes: { nome: string; precoAdicional: number }[] }[];
   quantidade: number;
   subtotal: number;
   observacao: string | null;
@@ -152,7 +160,17 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
     include: {
       categorias: {
         orderBy: { ordem: 'asc' },
-        include: { produtos: { orderBy: { ordem: 'asc' } } },
+        include: {
+          produtos: {
+            orderBy: { ordem: 'asc' },
+            include: {
+              gruposOpcoes: {
+                orderBy: { ordem: 'asc' },
+                include: { opcoes: { orderBy: { ordem: 'asc' } } },
+              },
+            },
+          },
+        },
       },
       bairrosEntrega: {
         where: { ativo: true },
@@ -206,20 +224,41 @@ publicRouter.get('/lojas/:slug', async (req, res) => {
       distanciaMaxMetros: faixa.distanciaMaxMetros,
       valorEntrega: Number(faixa.valorEntrega),
     })),
-    categorias: loja.categorias.map((categoria) => ({
-      id: categoria.id,
-      nome: categoria.nome,
-      ordem: categoria.ordem,
-      produtos: categoria.produtos.map((produto) => ({
-        id: produto.id,
-        nome: produto.nome,
-        descricao: produto.descricao,
-        preco: Number(produto.preco),
-        fotoUrl: produto.fotoUrl,
-        disponivel: produto.disponivel,
-        opcoes: produto.opcoes as string[] | null,
+    // montarCategoriasPublicas remove produtos indisponíveis e categorias que
+    // ficam sem nenhum produto visível (ver utils/cardapioPublico.ts) — o
+    // cliente nunca recebe produto inativo em nenhuma superfície pública.
+    categorias: montarCategoriasPublicas(
+      loja.categorias.map((categoria) => ({
+        id: categoria.id,
+        nome: categoria.nome,
+        ordem: categoria.ordem,
+        produtos: categoria.produtos.map((produto) => ({
+          id: produto.id,
+          nome: produto.nome,
+          descricao: produto.descricao,
+          preco: Number(produto.preco),
+          fotoUrl: produto.fotoUrl,
+          disponivel: produto.disponivel,
+          opcoes: produto.opcoes as string[] | null,
+          gruposOpcoes: produto.gruposOpcoes.map((grupo) => ({
+            id: grupo.id,
+            nome: grupo.nome,
+            minEscolhas: grupo.minEscolhas,
+            maxEscolhas: grupo.maxEscolhas,
+            obrigatorio: grupo.obrigatorio,
+            ativo: grupo.ativo,
+            ordem: grupo.ordem,
+            opcoes: grupo.opcoes.map((opcao) => ({
+              id: opcao.id,
+              nome: opcao.nome,
+              precoAdicional: Number(opcao.precoAdicional),
+              ativo: opcao.ativo,
+              ordem: opcao.ordem,
+            })),
+          })),
+        })),
       })),
-    })),
+    ),
   });
 });
 
@@ -276,9 +315,17 @@ publicRouter.get('/lojas/:slug/pedidos/:id', async (req, res) => {
   });
 });
 
+const grupoSelecionadoSchema = z.object({
+  grupoId: z.string().uuid(),
+  opcaoIds: z.array(z.string().uuid()),
+});
+
 const itemPedidoSchema = z.object({
   produtoId: z.string().uuid(),
+  // Legado (mecanismo antigo de opção única, Produto.opcoes) — segue
+  // funcionando exatamente como antes, em paralelo ao gruposSelecionados.
   opcao: z.string().nullable().optional(),
+  gruposSelecionados: z.array(grupoSelecionadoSchema).optional().default([]),
   quantidade: z.number().int().min(1),
   observacao: z.string().max(280).nullable().optional(),
 });
@@ -370,39 +417,56 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
   const produtoIds = parsed.data.itens.map((item) => item.produtoId);
   const produtos = await prisma.produto.findMany({
     where: { id: { in: produtoIds }, lojaId: loja.id },
+    include: { gruposOpcoes: { include: { opcoes: true } } },
   });
   const produtosPorId = new Map(produtos.map((produto) => [produto.id, produto]));
 
-  const itensResolvidos: {
-    produtoId: string;
-    nome: string;
-    opcao: string | null;
-    quantidade: number;
-    precoUnitario: number;
-    subtotal: number;
-    observacao: string | null;
-  }[] = [];
+  const itensResolvidos: ItemPedidoResolvido[] = [];
 
+  // Preço, disponibilidade e regras de grupos (min/máx/obrigatório/opção
+  // ativa) são sempre revalidados aqui contra o banco — nunca confiando no
+  // que o cliente mandou (ver utils/gruposOpcoes.ts). Isso vale tanto pra
+  // produtos com o mecanismo novo (grupos) quanto pro legado (opção única):
+  // um produto sem GrupoOpcoes cadastrado simplesmente não valida nenhum
+  // grupo, e `item.opcao` segue passando direto, como sempre funcionou.
   for (const item of parsed.data.itens) {
     const produto = produtosPorId.get(item.produtoId);
     if (!produto) {
       return res.status(400).json({ erro: `Produto ${item.produtoId} não encontrado nesta loja` });
     }
-    if (!produto.disponivel) {
-      return res.status(400).json({ erro: `Produto "${produto.nome}" está indisponível` });
-    }
 
-    const precoUnitario = Number(produto.preco);
-    const subtotal = precoUnitario * item.quantidade;
-    itensResolvidos.push({
-      produtoId: produto.id,
-      nome: produto.nome,
-      opcao: item.opcao ?? null,
-      quantidade: item.quantidade,
-      precoUnitario,
-      subtotal,
-      observacao: item.observacao?.trim() || null,
-    });
+    const resultadoItem = resolverItemPedido(
+      {
+        id: produto.id,
+        nome: produto.nome,
+        preco: Number(produto.preco),
+        disponivel: produto.disponivel,
+        gruposOpcoes: produto.gruposOpcoes.map((grupo) => ({
+          id: grupo.id,
+          nome: grupo.nome,
+          minEscolhas: grupo.minEscolhas,
+          maxEscolhas: grupo.maxEscolhas,
+          obrigatorio: grupo.obrigatorio,
+          ativo: grupo.ativo,
+          opcoes: grupo.opcoes.map((opcao) => ({
+            id: opcao.id,
+            nome: opcao.nome,
+            precoAdicional: Number(opcao.precoAdicional),
+            ativo: opcao.ativo,
+          })),
+        })),
+      },
+      {
+        opcao: item.opcao ?? null,
+        gruposSelecionados: item.gruposSelecionados as GrupoSelecionadoEntrada[],
+        quantidade: item.quantidade,
+        observacao: item.observacao ?? null,
+      },
+    );
+    if (!resultadoItem.ok) {
+      return res.status(400).json({ erro: resultadoItem.erro });
+    }
+    itensResolvidos.push(resultadoItem.item);
   }
 
   const subtotalItens = itensResolvidos.reduce((soma, item) => soma + item.subtotal, 0);
@@ -492,7 +556,7 @@ publicRouter.post('/lojas/:slug/pedidos', async (req, res) => {
       numero,
       clienteNome: parsed.data.clienteNome,
       clienteTelefone: parsed.data.clienteTelefone,
-      itens: itensResolvidos,
+      itens: itensResolvidos as unknown as Prisma.InputJsonValue,
       formaRecebimento: parsed.data.formaRecebimento,
       bairroEntregaId:
         parsed.data.formaRecebimento === 'entrega' && !loja.calcularEntregaPorDistancia

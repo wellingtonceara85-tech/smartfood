@@ -1,3 +1,22 @@
+export interface OpcaoGrupoProduto {
+  id: string;
+  nome: string;
+  precoAdicional: number;
+  ativo: boolean;
+  ordem: number;
+}
+
+export interface GrupoOpcoesProduto {
+  id: string;
+  nome: string;
+  minEscolhas: number;
+  maxEscolhas: number;
+  obrigatorio: boolean;
+  ativo: boolean;
+  ordem: number;
+  opcoes: OpcaoGrupoProduto[];
+}
+
 export interface Produto {
   id: string;
   nome: string;
@@ -6,8 +25,13 @@ export interface Produto {
   fotoUrl: string | null;
   disponivel: boolean;
   opcoes: string[] | null;
+  // Presente (com só grupos ativos/opções ativas) no cardápio público; no
+  // painel do lojista é buscado à parte, sob demanda, ao editar um produto
+  // (ver GET /admin/produtos/:id/grupos-opcoes) — por isso é opcional aqui.
+  gruposOpcoes?: GrupoOpcoesProduto[];
   categoriaId: string;
   ordem: number;
+  _count?: { gruposOpcoes: number };
 }
 
 export interface Categoria {
@@ -108,11 +132,27 @@ export interface Loja {
   trial: TrialInfo;
 }
 
+export interface OpcaoSelecionadaCarrinho {
+  id: string;
+  nome: string;
+  precoAdicional: number;
+}
+
+export interface GrupoSelecionadoCarrinho {
+  grupoId: string;
+  grupoNome: string;
+  opcoes: OpcaoSelecionadaCarrinho[];
+}
+
 export interface ItemCarrinho {
   produtoId: string;
   nome: string;
+  // Preço unitário já COM os adicionais dos grupos selecionados somados —
+  // downstream (subtotal, resumo, entrega) segue fazendo preco*quantidade
+  // sem precisar saber nada sobre grupos.
   preco: number;
   opcao: string | null;
+  gruposSelecionados: GrupoSelecionadoCarrinho[];
   quantidade: number;
   observacao: string | null;
 }
@@ -185,11 +225,24 @@ export type TipoChavePix = 'cpf' | 'cnpj' | 'telefone' | 'email' | 'aleatoria';
 export type StatusPagamentoPix =
   'aguardando_pagamento' | 'cliente_informou_pagamento' | 'pagamento_confirmado';
 
+export interface OpcaoGrupoPedidoRegistrado {
+  nome: string;
+  precoAdicional: number;
+}
+
+export interface GrupoPedidoRegistrado {
+  nome: string;
+  opcoes: OpcaoGrupoPedidoRegistrado[];
+}
+
 /** Formato em que os itens ficam gravados dentro de um pedido já criado (Pedido.itens no backend) — diferente de ItemCarrinho. */
 export interface ItemPedidoRegistrado {
   produtoId: string;
   nome: string;
   opcao: string | null;
+  // Ausente em pedidos antigos (de antes desta missão) — sempre tratar como
+  // [] nesse caso, nunca como erro.
+  grupos?: GrupoPedidoRegistrado[];
   quantidade: number;
   precoUnitario: number;
   subtotal: number;

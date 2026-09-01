@@ -322,13 +322,64 @@ model Produto {
   preco       Decimal   @db.Decimal(10, 2)
   fotoUrl     String?   @map("foto_url")
   disponivel  Boolean   @default(true)
+  // Mecanismo legado de opções (uma lista simples de nomes, escolha única,
+  // sem preço adicional) — mantido intacto para produtos já cadastrados por
+  // lojistas piloto. Nunca migrado automaticamente para GrupoOpcoes: os dois
+  // mecanismos coexistem, e um produto pode ter só um, só outro, os dois, ou
+  // nenhum. Ver backend/src/utils/gruposOpcoes.ts.
   opcoes      Json?
   // Posição dentro da categoria (0 = primeiro) — escopo é por categoriaId,
   // não global. Define a ordem no painel e no cardápio público.
   ordem       Int       @default(0)
   criadoEm    DateTime  @default(now()) @map("criado_em")
 
+  gruposOpcoes GrupoOpcoes[]
+
   @@map("produtos")
+}
+
+// Novo mecanismo de personalização (Missão "Grupos de opções") — um produto
+// pode ter vários grupos (Proteínas, Acompanhamentos, Adicionais...), cada um
+// com suas próprias regras de min/max escolhas. Sempre ligado a um único
+// Produto (nunca compartilhado entre produtos por referência): "reutilizar um
+// grupo em outro produto" é feito copiando as linhas (ver
+// POST /admin/produtos/:id/grupos-opcoes/:grupoId/copiar), no mesmo espírito
+// de "Duplicar produto" já existente — nunca um vínculo vivo que faria uma
+// edição em um produto mudar silenciosamente outro.
+model GrupoOpcoes {
+  id          String   @id @default(uuid())
+  produtoId   String   @map("produto_id")
+  produto     Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  nome        String
+  // Quantas opções o cliente é obrigado a escolher no mínimo (0 = grupo
+  // opcional, cliente pode não escolher nada).
+  minEscolhas Int      @default(0) @map("min_escolhas")
+  // Quantas opções o cliente pode escolher no máximo. 1 = escolha única
+  // (rádio); >1 = múltipla escolha (checkbox) respeitando o limite.
+  maxEscolhas Int      @default(1) @map("max_escolhas")
+  obrigatorio Boolean  @default(false)
+  ativo       Boolean  @default(true)
+  ordem       Int      @default(0)
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  opcoes OpcaoGrupo[]
+
+  @@map("grupos_opcoes")
+}
+
+model OpcaoGrupo {
+  id             String      @id @default(uuid())
+  grupoOpcoesId  String      @map("grupo_opcoes_id")
+  grupoOpcoes    GrupoOpcoes @relation(fields: [grupoOpcoesId], references: [id], onDelete: Cascade)
+  nome           String
+  // Acréscimo no preço do item quando esta opção é escolhida — R$ 0,00 é o
+  // caso normal (opção sem custo extra), não um estado especial.
+  precoAdicional Decimal     @default(0) @map("preco_adicional") @db.Decimal(10, 2)
+  ativo          Boolean     @default(true)
+  ordem          Int         @default(0)
+  criadoEm       DateTime    @default(now()) @map("criado_em")
+
+  @@map("opcoes_grupo")
 }
 
 model Pedido {

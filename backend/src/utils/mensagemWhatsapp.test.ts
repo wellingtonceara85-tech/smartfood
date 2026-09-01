@@ -243,6 +243,125 @@ test('item com opção com espaço em branco à direita também fica sem espaço
   assert.match(mensagem, /\*2x X-Burguer \(Grande\)\* - R\$ 45,80/);
 });
 
+test('item com grupos de opções mostra cada grupo em linha própria, com as escolhas', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [
+      {
+        nome: 'Almoço',
+        opcao: null,
+        quantidade: 1,
+        subtotal: 21,
+        grupos: [
+          { nome: 'Proteínas', opcoes: [{ nome: 'Frango', precoAdicional: 0 }] },
+          {
+            nome: 'Acompanhamentos',
+            opcoes: [
+              { nome: 'Arroz', precoAdicional: 0 },
+              { nome: 'Feijão', precoAdicional: 0 },
+            ],
+          },
+        ],
+      },
+    ],
+    21,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /\*1x Almoço\* - R\$ 21,00/);
+  assert.match(mensagem, /^ {2}Proteínas: Frango$/m);
+  assert.match(mensagem, /^ {2}Acompanhamentos: Arroz, Feijão$/m);
+});
+
+test('nome de grupo terminado em pontuação (ex: "?") não gruda um ":" em cima — some o separador, mas o espaço antes das escolhas continua', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [
+      {
+        nome: 'X-Burguer',
+        opcao: null,
+        quantidade: 1,
+        subtotal: 22.9,
+        grupos: [
+          {
+            nome: 'Deseja retirar algum ingrediente?',
+            opcoes: [
+              { nome: 'Alface', precoAdicional: 0 },
+              { nome: 'Tomate', precoAdicional: 0 },
+              { nome: 'Cebola', precoAdicional: 0 },
+            ],
+          },
+        ],
+      },
+    ],
+    22.9,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /^ {2}Deseja retirar algum ingrediente\? Alface, Tomate, Cebola$/m);
+  assert.doesNotMatch(mensagem, /ingrediente\?:/);
+});
+
+test('regra é genérica por pontuação final, não hardcoded pro nome de um grupo específico — cobre "!", "." e ";" também', () => {
+  const construir = (nomeGrupo: string) =>
+    montarMensagemPedido(
+      'Lanchonete Teste',
+      [
+        {
+          nome: 'Produto',
+          opcao: null,
+          quantidade: 1,
+          subtotal: 10,
+          grupos: [{ nome: nomeGrupo, opcoes: [{ nome: 'Opção A', precoAdicional: 0 }] }],
+        },
+      ],
+      10,
+      { forma: 'retirada' },
+      pedidoBase,
+    );
+
+  assert.match(construir('Escolha um sabor!'), /^ {2}Escolha um sabor! Opção A$/m);
+  assert.match(construir('Alguma observação.'), /^ {2}Alguma observação\. Opção A$/m);
+  assert.match(construir('Complementos;'), /^ {2}Complementos; Opção A$/m);
+  // Nome sem pontuação continua com ":" normalmente — não é o separador que sumiu de vez.
+  assert.match(construir('Adicionais'), /^ {2}Adicionais: Opção A$/m);
+});
+
+test('opção de grupo com acréscimo aparece com o valor adicional na mensagem', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [
+      {
+        nome: 'Almoço',
+        opcao: null,
+        quantidade: 1,
+        subtotal: 21,
+        grupos: [{ nome: 'Adicionais', opcoes: [{ nome: 'Bacon', precoAdicional: 3 }] }],
+      },
+    ],
+    21,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /^ {2}Adicionais: Bacon \(\+R\$ 3,00\)$/m);
+});
+
+test('item sem grupos (produto legado) não imprime nenhuma linha de grupo', () => {
+  const mensagem = montarMensagemPedido(
+    'Lanchonete Teste',
+    [{ nome: 'Espetinho', opcao: 'Carne', quantidade: 1, subtotal: 8 }],
+    8,
+    { forma: 'retirada' },
+    pedidoBase,
+  );
+
+  assert.match(mensagem, /\*1x Espetinho \(Carne\)\* - R\$ 8,00/);
+  assert.doesNotMatch(mensagem, /^ {2}\w+:/m);
+});
+
 test('múltiplos itens ficam cada um em negrito corretamente, sem quebrar observações', () => {
   const mensagem = montarMensagemPedido(
     'Lanchonete Teste',

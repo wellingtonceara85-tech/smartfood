@@ -9,6 +9,7 @@ import { Select } from '../components/ui/Select';
 import { Textarea } from '../components/ui/Textarea';
 import { BarraSelecaoProdutos } from '../components/painel/BarraSelecaoProdutos';
 import { CategoriasArrastaveis } from '../components/painel/CategoriasArrastaveis';
+import { GruposOpcoesEditor } from '../components/painel/GruposOpcoesEditor';
 import { ProdutoLinha } from '../components/painel/ProdutoLinha';
 import {
   DndContext,
@@ -22,6 +23,7 @@ import {
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useAuth } from '../context/AuthContext';
 import { ApiError, api, enviarFoto } from '../lib/api';
+import { corpoProdutoComGrupos, GrupoEditavel, validarGrupos } from '../lib/gruposOpcoes';
 import { agruparProdutosPorCategoria } from '../lib/produto';
 import { Categoria, Produto } from '../types';
 
@@ -62,6 +64,14 @@ export function PainelProdutos() {
   const [duplicandoId, setDuplicandoId] = useState<string | null>(null);
   const [produtoDestacadoId, setProdutoDestacadoId] = useState<string | null>(null);
   const [aberturaId, setAberturaId] = useState(0);
+  // Alimentado pelo próprio GruposOpcoesEditor (só ele sabe se os grupos
+  // carregados têm algum ativo) — usado só pro aviso ao lado do campo legado.
+  const [temGrupoAtivoNoFormulario, setTemGrupoAtivoNoFormulario] = useState(false);
+  // Rascunho dos grupos configurados enquanto o produto ainda não existe
+  // (formulario.id === undefined) — enviado junto no POST /produtos ao
+  // salvar. Sem efeito nenhum ao editar um produto já existente (nesse caso
+  // o próprio GruposOpcoesEditor salva os grupos direto, como sempre fez).
+  const [gruposRascunho, setGruposRascunho] = useState<GrupoEditavel[]>([]);
 
   const formularioRef = useRef<HTMLFormElement>(null);
   const nomeInputRef = useRef<HTMLInputElement>(null);
@@ -138,6 +148,11 @@ export function PainelProdutos() {
     setFormulario(dados);
     setErro(null);
     setAberturaId((v) => v + 1);
+    // Reseta enquanto o GruposOpcoesEditor (se houver) ainda não carregou os
+    // grupos reais do produto que está abrindo — evita mostrar o aviso com
+    // base no produto editado anteriormente por um instante.
+    setTemGrupoAtivoNoFormulario(false);
+    setGruposRascunho([]);
   }
 
   function editar(produto: Produto) {
@@ -315,27 +330,50 @@ export function PainelProdutos() {
       opcoes: formulario.opcoes.trim() ? formulario.opcoes.split(',').map((o) => o.trim()) : null,
     };
 
+    // GruposOpcoesEditor mantém gruposRascunho sincronizado o tempo todo (na
+    // criação E na edição — ver aoMudarGrupos) — então o botão "Salvar"
+    // principal sempre manda o estado atual dos grupos junto, tanto criando
+    // quanto editando. Antes, editar um produto só salvava os grupos através
+    // do botão isolado "Salvar grupos de opções" do editor: se o lojista
+    // mudasse um grupo e clicasse no "Salvar" principal (o caminho mais
+    // óbvio), a mudança era descartada silenciosamente e reabrir o produto
+    // mostrava os valores antigos — esse era o bug relatado na homologação.
+    const erroValidacaoGrupos = validarGrupos(gruposRascunho);
+    if (erroValidacaoGrupos) {
+      setErro(erroValidacaoGrupos);
+      return;
+    }
+
     try {
       if (formulario.id) {
         const atualizado = await api<Produto>(`/api/admin/produtos/${formulario.id}`, {
           method: 'PUT',
           autenticado: true,
-          body: corpo,
+          body: corpoProdutoComGrupos(corpo, gruposRascunho),
         });
         setProdutos((atuais) => atuais.map((p) => (p.id === atualizado.id ? atualizado : p)));
         setMensagemSucesso('Produto atualizado.');
         setProdutoDestacadoId(atualizado.id);
       } else {
+        // Produto + grupos de opções configurados durante o cadastro são
+        // criados numa única chamada (o backend grava tudo numa escrita só —
+        // ver POST /admin/produtos) — nunca um produto "órfão" sem os grupos
+        // que o lojista acabou de montar.
         const criado = await api<Produto>('/api/admin/produtos', {
           method: 'POST',
           autenticado: true,
-          body: corpo,
+          body: corpoProdutoComGrupos(corpo, gruposRascunho),
         });
         setProdutos((atuais) => [...atuais, criado]);
-        setMensagemSucesso('Produto criado.');
+        setMensagemSucesso(
+          gruposRascunho.length > 0
+            ? 'Produto criado com os grupos de opções configurados.'
+            : 'Produto criado.',
+        );
         setProdutoDestacadoId(criado.id);
       }
       setFormulario(null);
+      setGruposRascunho([]);
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Erro ao salvar produto');
     }
@@ -533,6 +571,35 @@ export function PainelProdutos() {
               value={formulario.opcoes}
               onChange={(e) => setFormulario({ ...formulario, opcoes: e.target.value })}
             />
+            <p className="-mt-2 text-xs text-gray-500">
+              Modelo simples e antigo de opções — uma lista com escolha única, sem preço adicional.
+              Continua funcionando normalmente; pra opções com preço adicional, mínimo obrigatório
+              ou múltipla escolha, use "Grupos de opções" abaixo.
+            </p>
+            {temGrupoAtivoNoFormulario && (
+              <p className="-mt-2 text-xs font-medium text-amber-600">
+                Este produto tem Grupos de Opções ativos — por isso, essas opções simples não
+                aparecem no cardápio público agora. Elas voltam a aparecer automaticamente se você
+                desativar todos os grupos abaixo.
+              </p>
+            )}
+
+            <div className="border-t border-gray-100 pt-3">
+              {/* Disponível desde a criação (produtoId null até o produto ser
+                  salvo) — o lojista já vê sugestões por nicho e monta os
+                  grupos antes mesmo de existir um produto pra salvar neles;
+                  tudo vai junto no primeiro "Salvar". Nenhuma mudança pro
+                  fluxo de edição de um produto já existente. */}
+              <GruposOpcoesEditor
+                key={formulario.id ?? `novo-${aberturaId}`}
+                produtoId={formulario.id ?? null}
+                outrosProdutos={produtos
+                  .filter((p) => p.id !== formulario.id)
+                  .map((p) => ({ id: p.id, nome: p.nome }))}
+                aoMudarTemGrupoAtivo={setTemGrupoAtivoNoFormulario}
+                aoMudarGrupos={setGruposRascunho}
+              />
+            </div>
 
             {erro && <Alert tipo="erro">{erro}</Alert>}
 

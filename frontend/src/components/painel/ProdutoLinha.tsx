@@ -89,6 +89,13 @@ export function ProdutoLinha({
           {produto.disponivel ? 'Disponível' : 'Indisponível'}
         </Badge>
         {incompleto && <Badge cor="yellow">{incompleto}</Badge>}
+        {!!produto._count?.gruposOpcoes && (
+          <Badge cor="gray">
+            {produto._count.gruposOpcoes === 1
+              ? '1 grupo de opções'
+              : `${produto._count.gruposOpcoes} grupos de opções`}
+          </Badge>
+        )}
 
         <label className="flex items-center gap-1.5 text-sm text-gray-600">
           <input

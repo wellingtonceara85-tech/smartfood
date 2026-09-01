@@ -249,6 +249,15 @@ export function PedidoCard({
             <li key={i}>
               {item.quantidade}x {item.nome}
               {item.opcao ? ` (${item.opcao})` : ''}
+              {item.grupos && item.grupos.length > 0 && (
+                <ul className="ml-3 list-disc text-xs text-gray-500">
+                  {item.grupos.map((grupo) => (
+                    <li key={grupo.nome}>
+                      {grupo.nome}: {grupo.opcoes.map((op) => op.nome).join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              )}
               {item.observacao && (
                 <span className="block text-xs italic text-gray-400">Obs: {item.observacao}</span>
               )}

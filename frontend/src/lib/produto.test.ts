@@ -1,12 +1,55 @@
 import { describe, expect, it } from 'vitest';
 import {
   agruparProdutosPorCategoria,
+  chaveItemCarrinho,
+  deveUsarOpcoesLegado,
   produtoConfiguravel,
   rotuloProdutoIncompleto,
+  rotuloRegraEscolha,
 } from './produto';
 
+describe('deveUsarOpcoesLegado', () => {
+  it('produto legado sem grupos continua exibindo as opções simples', () => {
+    expect(deveUsarOpcoesLegado({ opcoes: ['Ao ponto', 'Bem passado'] })).toBe(true);
+    expect(deveUsarOpcoesLegado({ opcoes: ['Ao ponto'], gruposOpcoes: [] })).toBe(true);
+  });
+
+  it('produto com pelo menos um grupo ativo NÃO exibe as opções simples, mesmo tendo opcoes cadastradas', () => {
+    expect(
+      deveUsarOpcoesLegado({
+        opcoes: ['Ao ponto', 'Bem passado'],
+        gruposOpcoes: [{ ativo: true }],
+      }),
+    ).toBe(false);
+  });
+
+  it('produto cujos grupos estão todos inativos volta a usar as opções simples', () => {
+    expect(
+      deveUsarOpcoesLegado({
+        opcoes: ['Ao ponto', 'Bem passado'],
+        gruposOpcoes: [{ ativo: false }, { ativo: false }],
+      }),
+    ).toBe(true);
+  });
+
+  it('produto sem opções legadas nunca usa o mecanismo legado, com ou sem grupos', () => {
+    expect(deveUsarOpcoesLegado({ opcoes: null })).toBe(false);
+    expect(deveUsarOpcoesLegado({ opcoes: [] })).toBe(false);
+    expect(deveUsarOpcoesLegado({ opcoes: null, gruposOpcoes: [{ ativo: true }] })).toBe(false);
+  });
+
+  it('um único grupo ativo entre vários já basta pra desligar as opções simples', () => {
+    expect(
+      deveUsarOpcoesLegado({
+        opcoes: ['Ao ponto'],
+        gruposOpcoes: [{ ativo: false }, { ativo: true }, { ativo: false }],
+      }),
+    ).toBe(false);
+  });
+});
+
 describe('produtoConfiguravel', () => {
-  it('é falso quando opcoes é null', () => {
+  it('é falso quando opcoes é null e não há grupos', () => {
     expect(produtoConfiguravel({ opcoes: null })).toBe(false);
   });
 
@@ -14,8 +57,60 @@ describe('produtoConfiguravel', () => {
     expect(produtoConfiguravel({ opcoes: [] })).toBe(false);
   });
 
-  it('é verdadeiro quando existe ao menos uma opção', () => {
+  it('é verdadeiro quando existe ao menos uma opção legada', () => {
     expect(produtoConfiguravel({ opcoes: ['Ao ponto', 'Bem passado'] })).toBe(true);
+  });
+
+  it('é verdadeiro quando existe ao menos um grupo de opções ativo', () => {
+    expect(produtoConfiguravel({ opcoes: null, gruposOpcoes: [{ ativo: true }] })).toBe(true);
+  });
+
+  it('é falso quando todos os grupos de opções estão inativos', () => {
+    expect(
+      produtoConfiguravel({ opcoes: null, gruposOpcoes: [{ ativo: false }, { ativo: false }] }),
+    ).toBe(false);
+  });
+});
+
+describe('rotuloRegraEscolha', () => {
+  it('"Escolha 1" quando min === max === 1', () => {
+    expect(rotuloRegraEscolha({ minEscolhas: 1, maxEscolhas: 1 }, 3)).toBe('Escolha 1');
+  });
+
+  it('"Escolha até N" quando opcional mas com limite real menor que o total de opções', () => {
+    expect(rotuloRegraEscolha({ minEscolhas: 0, maxEscolhas: 3 }, 5)).toBe('Escolha até 3');
+  });
+
+  it('"Escolha de X a Y" quando min e max diferem e ambos > 0', () => {
+    expect(rotuloRegraEscolha({ minEscolhas: 1, maxEscolhas: 3 }, 5)).toBe('Escolha de 1 a 3');
+  });
+
+  it('"Opcional" quando min=0 e o máximo cobre todas as opções (sem limite real)', () => {
+    expect(rotuloRegraEscolha({ minEscolhas: 0, maxEscolhas: 4 }, 4)).toBe('Opcional');
+  });
+});
+
+describe('chaveItemCarrinho', () => {
+  it('mesma configuração gera sempre a mesma chave, independente da ordem de seleção', () => {
+    const a = chaveItemCarrinho(
+      'p1',
+      null,
+      [{ grupoId: 'g1', opcoes: [{ id: 'o1' }, { id: 'o2' }] }],
+      null,
+    );
+    const b = chaveItemCarrinho(
+      'p1',
+      null,
+      [{ grupoId: 'g1', opcoes: [{ id: 'o2' }, { id: 'o1' }] }],
+      null,
+    );
+    expect(a).toBe(b);
+  });
+
+  it('configurações diferentes geram chaves diferentes', () => {
+    const a = chaveItemCarrinho('p1', null, [{ grupoId: 'g1', opcoes: [{ id: 'o1' }] }], null);
+    const b = chaveItemCarrinho('p1', null, [{ grupoId: 'g1', opcoes: [{ id: 'o2' }] }], null);
+    expect(a).not.toBe(b);
   });
 });
 
